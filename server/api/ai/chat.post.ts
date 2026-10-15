@@ -1,5 +1,8 @@
 import { generateAI, parseJSON } from '../../utils/ai';
 import { aiCreds } from '../../utils/ai-creds';
+import { AREA_GROUPS } from '#shared/areas.js';
+
+const AREA_LIST = AREA_GROUPS.flatMap((g) => g.areas.map((a) => ({ id: a.id, label: `${g.label} › ${a.label}`, parts: a.label.split('/').map((x) => norm(x).trim()).filter((x) => x.length >= 3) })));
 import { norm } from '../../utils/search';
 
 function chatLocal(msg: string, filters: any) {
@@ -21,10 +24,14 @@ function chatLocal(msg: string, filters: any) {
   else if (/mes|30 dias/.test(m)) { a.days = 30; reply += 'Últimos 30 dias. '; }
   else if (/recente/.test(m)) { a.days = 3; reply += 'Vagas recentes (3 dias). '; }
 
+  // Áreas citadas pelo nome (ex: "CRM", "help desk", "social media")
+  const areas = AREA_LIST.filter((ar) => ar.parts.some((p) => new RegExp('(^|[^a-z])' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z]|$)').test(m)));
+  if (areas.length) { a.areas = [...new Set([...(filters.areas || []), ...areas.map((x) => x.id)])]; reply += `Áreas: ${areas.map((x) => x.label).join(', ')}. `; }
+
   if (/poucas candidaturas|poucos candidatos/.test(m)) { a.fewApplicants = true; reply += 'Priorizando vagas com poucas candidaturas. '; }
 
   const q = m.match(/(?:vagas? de|procur\w+|buscar?|cargo de|area de)\s+([a-z0-9 +#/.-]{3,40})/);
-  if (q && !/vagas? (recentes|remotas|hibridas)/.test(q[0])) {
+  if (q && !areas.length && !/vagas? (recentes|remotas|hibridas)/.test(q[0])) {
     a.queries = [q[1].replace(/\b(remoto|remota|recentes?|no brasil|fora)\b.*/, '').trim()];
     if (a.queries[0]) reply += `Buscando por "${a.queries[0]}". `;
   }
@@ -61,6 +68,7 @@ Campos aceitos em filters:
 - lang: "pt" (só vagas em português) | "any"
 - expand: true | false (incluir cargos relacionados)
 - excludeTerms: lista de palavras proibidas no título (ex: ["estágio", "vendas"])
+- areas: lista de ids de áreas (busca vários cargos de uma vez). Ids válidos: ${AREA_LIST.map((x) => `${x.id} (${x.label})`).join('; ')}
 
 Filtros atuais: ${JSON.stringify(filters)}
 Perfil analisado: ${JSON.stringify(analysis)}

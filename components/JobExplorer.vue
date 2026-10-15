@@ -11,7 +11,7 @@
     <form class="card p-4 lg:p-5" @submit.prevent="submit">
       <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_auto] lg:items-end">
         <div>
-          <label class="label" for="q">Cargos ou palavras-chave</label>
+          <label class="label" for="q">Cargos ou palavras-chave <span v-if="filters.areas?.length" class="font-normal text-subtle">(opcional com áreas escolhidas)</span></label>
           <UiChipInput
             id="q"
             v-model="filters.queries"
@@ -28,10 +28,45 @@
             <input id="city" v-model="filters.location" class="input pl-9" placeholder="Ex: Sorocaba" />
           </div>
         </div>
-        <button type="submit" class="btn-primary h-10 px-5" :disabled="!filters.queries.length">
+        <button type="submit" class="btn-primary h-10 px-5" :disabled="!filters.queries.length && !filters.areas?.length">
           <Search class="w-4 h-4" />
           {{ dirty && search.ran ? 'Atualizar busca' : 'Buscar' }}
         </button>
+      </div>
+
+      <!-- Áreas: alternativa (ou complemento) aos cargos digitados -->
+      <div class="mt-3">
+        <button type="button" class="inline-flex items-center gap-2 h-8 text-[13px] font-semibold text-muted hover:text-ink" :aria-expanded="areasOpen" @click="areasOpen = !areasOpen">
+          <LayoutGrid class="w-4 h-4" /> Escolher por área
+          <span v-if="filters.areas?.length" class="badge-accent h-5">{{ filters.areas.length }}</span>
+          <ChevronDown class="w-4 h-4 transition-transform" :class="areasOpen && 'rotate-180'" />
+        </button>
+        <div v-if="!areasOpen && filters.areas?.length" class="mt-1.5 flex flex-wrap gap-1.5">
+          <span v-for="id in filters.areas" :key="id" class="chip bg-accent-soft border-accent/30 text-accent-ink">
+            {{ areaLabel(id) }}
+            <button type="button" class="grid place-items-center w-5 h-5 rounded-md hover:bg-accent/15" :aria-label="`Remover ${areaLabel(id)}`" @click="toggleArea(id)"><X class="w-3.5 h-3.5" /></button>
+          </span>
+        </div>
+        <div v-if="areasOpen" class="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3 animate-fade-up">
+          <div v-for="g in AREA_GROUPS" :key="g.id" role="group" :aria-label="g.label">
+            <div class="text-[12px] font-semibold text-subtle mb-1.5">{{ g.label }}</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="a in g.areas" :key="a.id" type="button"
+                class="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border text-[13px] font-medium transition-colors"
+                :class="hasArea(a.id) ? 'bg-accent-soft border-accent/40 text-accent-ink' : 'border-line text-muted hover:text-ink hover:bg-surface-2'"
+                :aria-pressed="hasArea(a.id)"
+                :title="a.queries.join(', ')"
+                @click="toggleArea(a.id)"
+              >
+                <Check v-if="hasArea(a.id)" class="w-3.5 h-3.5" />{{ a.label }}
+              </button>
+            </div>
+          </div>
+          <p class="sm:col-span-2 xl:col-span-3 text-[12px] text-subtle">
+            Cada área busca vários cargos de uma vez (passe o mouse para ver quais). Dá para combinar áreas com cargos digitados.
+          </p>
+        </div>
       </div>
 
       <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -241,8 +276,9 @@
 <script setup>
 import {
   Search, MapPin, SlidersHorizontal, ChevronDown, ChevronRight, ChevronLeft, FileUser, ListFilter, Globe,
-  Check, X, ExternalLink, LoaderCircle, CircleAlert, SearchX, MousePointerClick, Plug,
+  Check, X, ExternalLink, LoaderCircle, CircleAlert, SearchX, MousePointerClick, Plug, LayoutGrid,
 } from '@lucide/vue';
+import { AREA_GROUPS, areaLabel } from '#shared/areas.js';
 
 defineEmits(['go']);
 
@@ -269,6 +305,14 @@ const MODES = [
 ];
 
 const moreOpen = ref(false);
+
+// Seletor de áreas: começa aberto se a pessoa ainda não escolheu nada
+const areasOpen = ref(!filters.value.queries?.length && !filters.value.areas?.length);
+const hasArea = (id) => (filters.value.areas || []).includes(id);
+const toggleArea = (id) => {
+  const cur = filters.value.areas || [];
+  filters.value = { ...filters.value, areas: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+};
 const sourcesOpen = ref(false);
 const mobileOpen = ref(false);
 const view = ref('all');

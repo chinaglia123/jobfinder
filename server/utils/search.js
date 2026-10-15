@@ -70,7 +70,7 @@ const SYNONYMS = [
   ['comunicacao', 'communications', 'relacoes publicas', 'assessoria de imprensa', 'comunicacao interna'],
   ['endomarketing', 'employer branding'],
   ['trade marketing', 'merchandising', 'shopper'],
-  ['inbound', 'automacao de marketing', 'marketing automation', 'email marketing', 'e-mail marketing'],
+  ['inbound marketing', 'automacao de marketing', 'marketing automation', 'email marketing', 'e-mail marketing'],
   ['midia', 'media buyer', 'planejamento de midia', 'midia programatica'],
   ['influencia', 'influencer', 'influenciadores', 'creator', 'ugc'],
   ['eventos', 'events', 'experiencias'],
@@ -78,6 +78,9 @@ const SYNONYMS = [
   ['conteudo', 'content', 'copywriter', 'copywriting', 'redator', 'redacao'],
   ['trafego', 'trafego pago', 'performance', 'paid media', 'midia paga', 'ads'],
   ['vendas', 'comercial', 'sales', 'sdr', 'bdr', 'inside sales', 'executivo de contas', 'account executive', 'pre-vendas'],
+  // Suporte de TI fica separado de atendimento ao cliente (expressões inteiras, para "service"/"desk" soltos não puxarem vagas aleatórias)
+  ['help desk', 'helpdesk', 'service desk', 'suporte tecnico', 'suporte de ti', 'suporte ti', 'analista de suporte', 'tecnico de suporte', 'tecnico de informatica', 'it support', 'technical support', 'desktop support', 'tech support', 'support engineer', 'support analyst', 'support specialist',
+    'suporte n1', 'suporte n2', 'suporte n3', 'suporte de sistemas', 'suporte a sistemas', 'suporte ao usuario', 'suporte a usuarios', 'atendente de suporte', 'suporte de infraestrutura'],
   ['atendimento', 'suporte', 'support', 'customer success', 'sucesso do cliente', 'customer service', 'customer support', 'cs'],
   ['desenvolvedor', 'developer', 'programador', 'engenheiro de software', 'software engineer', 'dev'],
   ['frontend', 'front-end', 'front end'],
@@ -177,10 +180,11 @@ export function relatedQueries(queries, max = 8) {
   return out.slice(0, max);
 }
 
-/** Plano de consultas: buscas digitadas com várias páginas, relacionadas só com a primeira. */
+/** Plano de consultas: buscas digitadas com várias páginas; cargos das áreas e relacionados só com a primeira. */
 export function queryPlan(f, pages, maxTyped = 5) {
   return [
     ...f.queries.slice(0, maxTyped).flatMap((q) => pages.map((page) => ({ q, page }))),
+    ...(f.areaQueries || []).map((q) => ({ q, page: pages[0] })),
     ...(f.related || []).map((q) => ({ q, page: pages[0], related: true })),
   ];
 }
@@ -353,7 +357,8 @@ export const SOURCES = {
     const br = f.region === 'br';
     const country = br ? { location: 'Brasil', geoId: '106057199' } : { location: 'Worldwide' };
     const plans = [];
-    for (const q of f.queries.slice(0, 4)) {
+    // LinkedIn é lento: no máximo 4 cargos (digitados primeiro, depois os das áreas)
+    for (const q of [...f.queries, ...(f.areaQueries || [])].slice(0, 4)) {
       if (f.workMode !== 'any') plans.push({ keywords: `${q} ${br ? 'remoto' : 'remote'}`, ...country });
       if (f.workMode === 'remote_hybrid' && f.location) plans.push({ keywords: q, location: f.location });
       if (f.workMode === 'any') plans.push({ keywords: q, ...(f.location ? { location: f.location } : country) });

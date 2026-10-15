@@ -2,6 +2,7 @@
 import { db } from './db';
 import { verifyLinkedIn, searchLinks, norm, nearList, buildMatcher, wordRe, openToBrazil, relatedQueries, detectLang, detectContract } from './search';
 import { enqueueVerify, withForeground } from './indexer';
+import { AREAS_BY_ID } from '#shared/areas.js';
 
 const SENIOR_RE = /\b(senior|sr\.?|especialista|coordenador\w*|gerente|head|lead|lider|manager|diretor\w*|iii|staff|principal)\b/;
 const SENIOR_RE_JR = /\b(senior|sr\.?|pleno|pl\.?|especialista|coordenador\w*|gerente|head|lead|lider|manager|diretor\w*|ii|iii|staff|principal)\b/;
@@ -47,14 +48,27 @@ function computeMatch(j: any, profile: any, targetMatchers: any[]) {
 export function normalizeFilters(input: any) {
   const f: any = { ...(input || {}) };
   f.queries = (f.queries || []).map((s: string) => String(s).trim()).filter(Boolean);
-  if (!f.queries.length) f.queries = ['emprego'];
   if (!f.workMode) f.workMode = f.remote ? 'remote' : 'any';
   if (f.includeUnconfirmed === undefined) f.includeUnconfirmed = true;
-  // Cargos relacionados (mais variedade): entram na busca, mas pesam menos no ranking
+
+  // Áreas escolhidas (ex: "Marketing › CRM") viram cargos para buscar e para reconhecer o título
+  const areas = (Array.isArray(f.areas) ? f.areas : []).map((id: string) => AREAS_BY_ID[id]).filter(Boolean);
+  f.areas = areas.map((a: any) => a.id);
+  const typed = [...f.queries];
+  const seenQ = new Set(typed.map(norm));
+  const take = (q: string) => (seenQ.has(norm(q)) ? false : (seenQ.add(norm(q)), true));
+  if (!typed.length && areas.length) f.queries = areas.map((a: any) => a.queries[0]).filter(take).slice(0, 5);
+  // Demais cargos das áreas: buscados só na 1ª página de cada fonte (para não pesar)
+  f.areaQueries = areas.flatMap((a: any) => a.queries.slice(0, 3)).filter(take).slice(0, 12);
+  const areaMatch = areas.flatMap((a: any) => a.queries);
+  if (!f.queries.length) f.queries = ['emprego'];
+
+  // Cargos relacionados (mais variedade): só a partir do que a pessoa digitou; pesam menos no ranking
   f.expand = f.expand !== false;
-  f.related = f.expand ? relatedQueries(f.queries) : [];
-  f.typedMatcher = buildMatcher(f.queries);
-  f.matcher = f.related.length ? buildMatcher([...f.queries, ...f.related]) : f.typedMatcher;
+  f.related = f.expand && typed.length ? relatedQueries(typed, areas.length ? 4 : 8) : [];
+  // Cargo digitado ou área escolhida conta como escolha explícita (não "relacionado")
+  f.typedMatcher = buildMatcher([...f.queries, ...areaMatch]);
+  f.matcher = f.related.length ? buildMatcher([...f.queries, ...areaMatch, ...f.related]) : f.typedMatcher;
   // Palavras que a pessoa não quer ver no título (ex: "estágio", "vendas")
   f.excludeTerms = (Array.isArray(f.excludeTerms) ? f.excludeTerms : []).map((t: string) => norm(t).trim()).filter((t: string) => t.length > 1);
   // Casa pelo radical: "estágio" também pega "estagiário"; "vendas" pega "vendedor"

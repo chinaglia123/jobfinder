@@ -1,3 +1,5 @@
+import { AREAS_BY_ID } from '#shared/areas.js';
+
 // Estado compartilhado do app (filtros, perfil, resultados, candidaturas) e as ações sobre ele.
 export const DEFAULT_FILTERS = {
   queries: ['analista de marketing', 'marketing digital', 'vendas técnicas', 'assistente de marketing'],
@@ -11,6 +13,7 @@ export const DEFAULT_FILTERS = {
   lang: 'any', // 'pt' = só vagas em português
   expand: true, // incluir cargos relacionados (mais variedade)
   excludeTerms: [], // palavras proibidas no título
+  areas: [], // áreas escolhidas (ver shared/areas.js)
 };
 
 const emptySearch = () => ({
@@ -236,8 +239,10 @@ export function useJobFinder() {
     // 3ª etapa: agente local (Indeed, Glassdoor). O navegador busca no agente e o servidor aplica o funil.
     const viaAgent = (async () => {
       if (!(await checkAgent())) return;
+      // O agente busca até 4 cargos: os digitados primeiro, depois o principal de cada área
+      const agentQueries = [...new Set([...(body.queries || []), ...(body.areas || []).map((id) => AREAS_BY_ID[id]?.queries[0]).filter(Boolean)])].slice(0, 4);
       const r = await fetchTimeout(agent.value.url.replace(/\/$/, '') + '/search', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, queries: agentQueries }),
       }, 120000);
       if (!r.ok) throw new Error('agente respondeu ' + r.status);
       const found = await r.json();
