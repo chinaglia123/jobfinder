@@ -125,9 +125,9 @@ import { Bot, ExternalLink, Eye, EyeOff, KeyRound, Trash2, ChevronRight, CircleC
 const { info, auth, unhideJob, toast, aiKey, setAiKey, aiHeaders } = useJobFinder();
 
 const PROVIDER_INFO = {
-  groq: { name: 'Groq', model: 'llama-3.3-70b-versatile', placeholder: 'gsk_…', url: 'https://console.groq.com/keys', desc: 'Recomendado: rápido e gratuito, sem cartão.' },
-  gemini: { name: 'Gemini', model: 'gemini-2.5-flash', placeholder: 'AIza…', url: 'https://aistudio.google.com/apikey', desc: 'Google AI Studio, com cota gratuita.' },
-  openrouter: { name: 'OpenRouter', model: 'meta-llama/llama-3.3-70b-instruct:free', placeholder: 'sk-or-…', url: 'https://openrouter.ai/keys', desc: 'Vários modelos, inclusive gratuitos.' },
+  groq: { name: 'Groq', model: 'openai/gpt-oss-120b (automático)', placeholder: 'gsk_…', url: 'https://console.groq.com/keys', desc: 'Recomendado: rápido e gratuito, sem cartão.' },
+  gemini: { name: 'Gemini', model: 'gemini-2.5-flash (automático)', placeholder: 'AIza…', url: 'https://aistudio.google.com/apikey', desc: 'Google AI Studio, com cota gratuita.' },
+  openrouter: { name: 'OpenRouter', model: 'openai/gpt-oss-20b:free (automático)', placeholder: 'sk-or-…', url: 'https://openrouter.ai/keys', desc: 'Vários modelos, inclusive gratuitos.' },
 };
 const form = reactive({ provider: 'groq', key: '', model: '' });
 const editing = ref(false);

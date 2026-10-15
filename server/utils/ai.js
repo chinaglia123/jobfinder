@@ -1,11 +1,14 @@
 // Adaptador Unificado de Inteligência Artificial: Groq, Gemini, OpenRouter ou Motor Local.
 // Ordem: chave da própria pessoa (enviada pelo navegador) → chave do servidor (.env) → heurística local.
 
+// Modelos em ordem de preferência. Os provedores aposentam modelos com frequência:
+// se um não existir mais, tentamos o próximo e, por fim, perguntamos ao provedor quais existem.
 export const AI_PROVIDERS = {
-  groq: { label: 'Groq', defaultModel: 'llama-3.3-70b-versatile' },
-  gemini: { label: 'Google Gemini', defaultModel: 'gemini-2.5-flash' },
-  openrouter: { label: 'OpenRouter', defaultModel: 'meta-llama/llama-3.3-70b-instruct:free' },
+  groq: { label: 'Groq', models: ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile'] },
+  gemini: { label: 'Google Gemini', models: ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'] },
+  openrouter: { label: 'OpenRouter', models: ['openai/gpt-oss-20b:free', 'meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-14b:free'] },
 };
+for (const p of Object.values(AI_PROVIDERS)) p.defaultModel = p.models[0];
 
 const TIMEOUT_MS = 45000;
 
@@ -58,13 +61,57 @@ function serverCreds() {
   return out;
 }
 
-/** Chama um provedor específico (usado também para testar a chave da pessoa). Lança erro se falhar. */
+const isModelMissing = (e) => e?.status === 404 || /model_not_found|does not exist|not found|decommissioned|deprecated|no endpoints/i.test(String(e?.message));
+const workingModel = new Map(); // provedor → último modelo que funcionou (evita repetir 404)
+
+/** Pergunta ao provedor quais modelos de texto a chave pode usar */
+async function discoverModels(provider, key) {
+  try {
+    if (provider === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+      const d = await r.json();
+      return (d.models || [])
+        .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent') && /flash/.test(m.name) && !/image|tts|audio|live|embed/.test(m.name))
+        .map((m) => m.name.replace(/^models\//, ''));
+    }
+    const url = provider === 'groq' ? 'https://api.groq.com/openai/v1/models' : 'https://openrouter.ai/api/v1/models';
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+    const d = await r.json();
+    return (d.data || [])
+      .map((m) => m.id)
+      .filter((id) => !/whisper|guard|orpheus|tts|embed|audio|vision|allam/i.test(id))
+      .filter((id) => provider !== 'openrouter' || id.endsWith(':free'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Chama um provedor (usado também para testar a chave da pessoa). Lança erro se falhar.
+ * Sem modelo escolhido, usa a lista de preferência e se adapta a modelos aposentados.
+ */
 export async function callProvider({ provider, key, model }, req) {
   const p = AI_PROVIDERS[provider];
   if (!p || !CALL[provider]) throw new Error('Provedor de IA desconhecido');
-  const m = model || p.defaultModel;
-  const text = await CALL[provider](key, m, { json: false, temperature: 0.3, messages: [], ...req });
-  return { text, provider, model: m };
+  const full = { json: false, temperature: 0.3, messages: [], ...req };
+  if (model) return { text: await CALL[provider](key, model, full), provider, model };
+
+  const tried = new Set();
+  const attempt = async (m) => {
+    tried.add(m);
+    const text = await CALL[provider](key, m, full);
+    workingModel.set(provider, m);
+    return { text, provider, model: m };
+  };
+  let lastErr = null;
+  for (const m of [...new Set([workingModel.get(provider), ...p.models].filter(Boolean))]) {
+    try { return await attempt(m); } catch (e) { lastErr = e; if (!isModelMissing(e)) throw e; }
+  }
+  // Nenhum da lista existe mais: usa o que o provedor oferece hoje
+  for (const m of (await discoverModels(provider, key)).filter((x) => !tried.has(x)).slice(0, 3)) {
+    try { return await attempt(m); } catch (e) { lastErr = e; if (!isModelMissing(e)) throw e; }
+  }
+  throw lastErr || new Error('Nenhum modelo disponível');
 }
 
 /**
