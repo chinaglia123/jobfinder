@@ -17,22 +17,53 @@
       <span v-for="t in tags" :key="t" class="badge-neutral">{{ t }}</span>
     </div>
 
+    <!-- Salário -->
+    <p v-if="job.salary" class="mt-3 flex items-center gap-2 text-[14px]">
+      <Wallet class="w-4 h-4 text-ok" /><b>{{ salaryText }}</b><span class="text-muted">informado na vaga</span>
+    </p>
+    <p v-else-if="job.salaryEstimate" class="mt-3 flex items-center gap-2 text-[14px]">
+      <Wallet class="w-4 h-4 text-subtle" /><span><b>~{{ estimateText }}</b> <span class="text-muted">estimado com {{ job.salaryEstimate.n }} vagas parecidas desta busca</span></span>
+    </p>
+
+    <!-- Sinais de alerta -->
+    <div v-if="job.scam?.level" class="mt-4 flex gap-3 p-3.5 rounded-2xl border" :class="job.scam.level >= 2 ? 'bg-bad-soft border-bad/30' : 'bg-warn-soft border-warn/30'" role="alert">
+      <ShieldAlert class="w-5 h-5 shrink-0" :class="job.scam.level >= 2 ? 'text-bad' : 'text-warn'" />
+      <div class="text-[13px]">
+        <div class="font-semibold" :class="job.scam.level >= 2 ? 'text-bad' : 'text-warn'">{{ job.scam.level >= 3 ? 'Sinais fortes de golpe' : job.scam.level === 2 ? 'Cuidado com esta vaga' : 'Fique atento' }}</div>
+        <ul class="mt-1 space-y-0.5"><li v-for="r in job.scam.reasons" :key="r">• {{ r }}</li></ul>
+        <p class="mt-1.5 text-muted">Empresas sérias não cobram para contratar. Na dúvida, pesquise a empresa no Reclame Aqui antes de enviar dados.</p>
+      </div>
+    </div>
+    <div v-if="job.ghost?.level" class="mt-4 flex gap-3 p-3.5 rounded-2xl border bg-warn-soft border-warn/30">
+      <Ghost class="w-5 h-5 shrink-0 text-warn" />
+      <div class="text-[13px]">
+        <div class="font-semibold text-warn">{{ job.ghost.level >= 2 ? 'Pode ser uma vaga fantasma' : 'Vaga aberta há algum tempo' }}</div>
+        <ul class="mt-1 space-y-0.5"><li v-for="r in job.ghost.reasons" :key="r">• {{ r }}</li></ul>
+        <p class="mt-1.5 text-muted">Vale se candidatar, mas não conte só com ela: anúncios assim às vezes não levam a contratação.</p>
+      </div>
+    </div>
+
     <!-- Ações -->
     <div class="mt-4 flex flex-wrap gap-2">
-      <a :href="job.url" target="_blank" rel="noopener noreferrer" class="btn-primary">
-        Ver vaga e candidatar-se <ExternalLink class="w-4 h-4" />
+      <button class="btn-primary" @click="kitOpen = true">
+        <Rocket class="w-4 h-4" /> Preparar candidatura
+      </button>
+      <a :href="job.url" target="_blank" rel="noopener noreferrer" class="btn-secondary">
+        Ver vaga <ExternalLink class="w-4 h-4" />
       </a>
       <button class="btn-secondary" @click="toggleSave">
         <BookmarkCheck v-if="saved" class="w-4 h-4 text-accent" /><Bookmark v-else class="w-4 h-4" />
         {{ saved ? 'Salva' : 'Salvar' }}
       </button>
-      <button class="btn-secondary" :disabled="letter.loading" @click="genLetter">
-        <LoaderCircle v-if="letter.loading" class="w-4 h-4 animate-spin" /><MessageSquare v-else class="w-4 h-4" />
-        Mensagem para o recrutador
-      </button>
       <button class="btn-ghost" title="Esconde esta vaga das próximas buscas" @click="$emit('hide')">
         <EyeOff class="w-4 h-4" /> Não tenho interesse
       </button>
+    </div>
+
+    <!-- Outros lugares onde a mesma vaga aparece -->
+    <div v-if="job.alsoOn?.length" class="mt-3 flex flex-wrap items-center gap-1.5 text-[13px]">
+      <Layers class="w-4 h-4 text-subtle" /><span class="text-muted">Também em:</span>
+      <a v-for="a in job.alsoOn" :key="a.url" :href="a.url" target="_blank" rel="noopener noreferrer" class="btn-ghost btn-sm h-7 px-2">{{ a.source }} <ExternalLink class="w-3 h-3" /></a>
     </div>
 
     <!-- Match -->
@@ -77,23 +108,24 @@
       </div>
     </section>
 
-    <!-- Mensagem / carta -->
-    <section v-if="letter.result" class="mt-4 space-y-3 animate-fade-up" aria-label="Mensagens para o recrutador">
-      <div class="rounded-2xl border border-line p-4">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[12px] font-semibold text-muted">Convite de conexão no LinkedIn <span class="text-subtle font-normal">· {{ (letter.result.linkedin_note || '').length }}/300</span></span>
-          <button class="btn-ghost btn-sm" @click="copy(letter.result.linkedin_note, 'note')"><Check v-if="copied === 'note'" class="w-4 h-4 text-ok" /><Copy v-else class="w-4 h-4" /> Copiar</button>
+
+    <!-- Empresa -->
+    <section class="mt-6" aria-label="Sobre a empresa">
+      <h3 class="text-[13px] font-semibold text-muted mb-2">Sobre a empresa</h3>
+      <div class="rounded-2xl border border-line p-4 text-[13px] space-y-2">
+        <p v-if="company.data?.openJobs" class="flex items-center gap-2">
+          <Building2 class="w-4 h-4 text-subtle" />
+          <span><b>{{ company.data.openJobs }}</b> {{ company.data.openJobs === 1 ? 'vaga aberta' : 'vagas abertas' }} no site de carreiras<template v-if="company.data.board"> —
+            <a :href="company.data.board.url" target="_blank" rel="noopener noreferrer" class="text-accent font-semibold">ver todas</a></template></span>
+        </p>
+        <p v-else-if="!company.loading" class="text-muted">Ainda não acompanhamos o site de carreiras desta empresa.</p>
+        <div class="flex flex-wrap gap-1.5 pt-1">
+          <a v-for="l in company.data?.links || []" :key="l.url" :href="l.url" target="_blank" rel="noopener noreferrer" class="btn-secondary btn-sm">{{ l.label }} <ExternalLink class="w-3.5 h-3.5 text-subtle" /></a>
         </div>
-        <p class="text-[14px] whitespace-pre-line">{{ letter.result.linkedin_note }}</p>
-      </div>
-      <div class="rounded-2xl border border-line p-4">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[12px] font-semibold text-muted">Carta de apresentação</span>
-          <button class="btn-ghost btn-sm" @click="copy(letter.result.cover_letter, 'letter')"><Check v-if="copied === 'letter'" class="w-4 h-4 text-ok" /><Copy v-else class="w-4 h-4" /> Copiar</button>
-        </div>
-        <p class="text-[14px] whitespace-pre-line">{{ letter.result.cover_letter }}</p>
       </div>
     </section>
+
+    <ApplicationKit :job="job" :open="kitOpen" @close="kitOpen = false" @go="kitOpen = false; $emit('go', $event)" />
 
     <!-- Descrição -->
     <section class="mt-6" aria-label="Descrição da vaga">
@@ -115,8 +147,8 @@
 
 <script setup>
 import {
-  ExternalLink, Bookmark, BookmarkCheck, MessageSquare, LoaderCircle, Clock, Users, CircleCheck, TriangleAlert,
-  Lightbulb, WandSparkles, FileUser, Copy, Check, ChevronDown, EyeOff,
+  ExternalLink, Bookmark, BookmarkCheck, LoaderCircle, Clock, Users, CircleCheck, TriangleAlert,
+  Lightbulb, WandSparkles, FileUser, ChevronDown, EyeOff, ShieldAlert, Ghost, Wallet, Layers, Building2, Rocket,
 } from '@lucide/vue';
 
 const props = defineProps({ job: { type: Object, required: true } });
@@ -125,9 +157,24 @@ defineEmits(['go', 'hide']);
 const { profile, cvText, savedByUrl, saveJob, removeSaved, toast, aiHeaders, checkKeyError } = useJobFinder();
 
 const ai = reactive({ loading: false, result: null });
-const letter = reactive({ loading: false, result: null });
+const company = reactive({ loading: false, data: null });
+const kitOpen = ref(false);
+const salaryText = computed(() => formatSalary(props.job.salary));
+const estimateText = computed(() => formatEstimate(props.job.salaryEstimate));
+
+async function loadCompany() {
+  const name = props.job.company;
+  company.data = null;
+  if (!name || /confidencial/i.test(name)) return;
+  company.loading = true;
+  try {
+    const d = await $fetch('/api/company/info', { query: { name } });
+    if (props.job.company === name) company.data = d;
+  } catch {} finally {
+    if (props.job.company === name) company.loading = false;
+  }
+}
 const desc = reactive({ loading: false, text: '', expanded: false });
-const copied = ref('');
 
 const ago = computed(() => timeAgo(props.job.date));
 const saved = computed(() => savedByUrl.value.has(props.job.url));
@@ -167,8 +214,8 @@ async function loadDescription() {
 
 watch(() => props.job.url, () => {
   ai.result = null; ai.loading = false;
-  letter.result = null; letter.loading = false;
   loadDescription();
+  loadCompany();
 }, { immediate: true });
 
 async function analyze() {
@@ -184,19 +231,6 @@ async function analyze() {
   }
 }
 
-async function genLetter() {
-  if (!cvText.value) { toast('Envie seu currículo primeiro para personalizar a mensagem', 'bad'); return; }
-  const url = props.job.url;
-  letter.loading = true;
-  try {
-    const r = checkKeyError(await $fetch('/api/ai/cover-letter', { method: 'POST', headers: aiHeaders(), body: { job: { ...props.job, desc: desc.text }, cvText: cvText.value, analysis: profile.value } }));
-    if (props.job.url === url) letter.result = r;
-  } catch (err) {
-    toast('Não consegui gerar: ' + (err?.data?.message || err.message), 'bad');
-  } finally {
-    if (props.job.url === url) letter.loading = false;
-  }
-}
 
 async function toggleSave() {
   const s = savedByUrl.value.get(props.job.url);
@@ -204,11 +238,4 @@ async function toggleSave() {
   else if (await saveJob(props.job)) toast('Salva nas candidaturas');
 }
 
-async function copy(text, key) {
-  try {
-    await navigator.clipboard.writeText(text || '');
-    copied.value = key;
-    setTimeout(() => { if (copied.value === key) copied.value = ''; }, 1500);
-  } catch { toast('Não foi possível copiar', 'bad'); }
-}
 </script>

@@ -15,11 +15,15 @@
       </p>
       <div class="mt-2 flex flex-wrap items-center gap-1.5">
         <UiModeBadge :mode="job.mode" />
+        <span v-if="job.scam?.level >= 2" class="badge-bad" :title="job.scam.reasons.join(' · ')"><ShieldAlert class="w-3.5 h-3.5" />Cuidado</span>
+        <span v-else-if="job.ghost?.level >= 2" class="badge-warn" :title="job.ghost.reasons.join(' · ')"><Ghost class="w-3.5 h-3.5" />Possível fantasma</span>
+        <span v-if="job.salary" class="badge-ok" title="Salário informado na vaga">{{ salary }}</span>
+        <span v-else-if="job.salaryEstimate" class="badge-neutral" :title="`Estimativa com base em ${job.salaryEstimate.n} vagas parecidas desta busca`">~{{ estimate }}</span>
         <span v-if="job.applicants != null && job.applicants <= 50" class="badge-accent"><Flame class="w-3.5 h-3.5" />{{ job.applicants }} candidatos</span>
         <span v-else-if="job.fewApplicants" class="badge-accent"><Flame class="w-3.5 h-3.5" />Nova</span>
         <span v-if="job.lang === 'en' || job.lang === 'es'" class="badge-neutral" :title="job.lang === 'en' ? 'Vaga em inglês' : 'Vaga em espanhol'">{{ job.lang.toUpperCase() }}</span>
         <span v-for="c in contracts" :key="c" class="badge-neutral">{{ c }}</span>
-        <span class="text-[12px] text-subtle">{{ source }}<template v-if="ago"> · {{ ago }}</template><template v-if="job.related"> · cargo relacionado</template></span>
+        <span class="text-[12px] text-subtle">{{ source }}<template v-if="ago"> · {{ ago }}</template><template v-if="job.alsoOn?.length"> · +{{ job.alsoOn.length }} {{ job.alsoOn.length === 1 ? 'fonte' : 'fontes' }}</template><template v-if="job.related"> · cargo relacionado</template></span>
       </div>
     </div>
     <div class="flex flex-col items-end justify-between gap-2 shrink-0">
@@ -50,7 +54,7 @@
 </template>
 
 <script setup>
-import { Bookmark, BookmarkCheck, Flame, EyeOff } from '@lucide/vue';
+import { Bookmark, BookmarkCheck, Flame, EyeOff, ShieldAlert, Ghost } from '@lucide/vue';
 
 const props = defineProps({
   job: { type: Object, required: true },
@@ -59,6 +63,8 @@ const props = defineProps({
 });
 defineEmits(['select', 'save', 'hide']);
 const ago = computed(() => timeAgo(props.job.date));
+const salary = computed(() => formatSalary(props.job.salary));
+const estimate = computed(() => formatEstimate(props.job.salaryEstimate));
 const source = computed(() => sourceLabel(props.job.source));
 const CONTRACT_LABEL = { clt: 'CLT', pj: 'PJ', estagio: 'Estágio', freela: 'Freela', temporario: 'Temporária' };
 const contracts = computed(() => (props.job.contract || []).slice(0, 2).map((c) => CONTRACT_LABEL[c] || c));

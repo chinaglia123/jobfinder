@@ -20,7 +20,9 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "docx": "^9.11.0",
     "mammoth": "^1.13.0",
+    "pdfmake": "^0.3.11",
     "unpdf": "^1.8.1"
   }
 }

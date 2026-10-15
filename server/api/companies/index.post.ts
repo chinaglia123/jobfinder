@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   const { url = '', name = '' } = (await readBody(event)) || {};
   const parsed = parseCompanyUrl(url);
   if (!parsed) {
-    throw createError({ statusCode: 400, message: 'Link não reconhecido. Use o link da página de vagas no Greenhouse, Lever ou Ashby (ex: https://jobs.lever.co/empresa).' });
+    throw createError({ statusCode: 400, message: 'Link não reconhecido. Use o link da página de vagas no Greenhouse, Lever, Ashby, Workable, SmartRecruiters ou Recruitee (ex: https://jobs.lever.co/empresa).' });
   }
 
   // Confere se o quadro existe e tem vagas antes de salvar

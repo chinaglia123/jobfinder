@@ -101,6 +101,10 @@
             <span class="switch"><input :checked="filters.lang === 'pt'" type="checkbox" @change="filters.lang = $event.target.checked ? 'pt' : 'any'" /><span></span></span>
             Só vagas em português
           </label>
+          <label class="flex items-center gap-2 text-[13px] text-muted cursor-pointer col-span-2" title="Some com vagas que pedem pagamento, prometem ganho fácil ou têm outros sinais fortes de golpe">
+            <span class="switch"><input :checked="filters.hideSuspicious !== false" type="checkbox" @change="filters.hideSuspicious = $event.target.checked" /><span></span></span>
+            Esconder vagas suspeitas
+          </label>
           <label class="flex items-center gap-2 text-[13px] text-muted cursor-pointer col-span-2" :title="relatedHint">
             <span class="switch"><input v-model="filters.expand" type="checkbox" /><span></span></span>
             Incluir cargos relacionados
@@ -173,6 +177,9 @@
       </p>
       <p v-if="search.status.linkedin?.verificadas !== undefined" class="text-[13px] text-muted">
         LinkedIn: {{ search.status.linkedin.verificadas }} vagas tiveram a modalidade confirmada lendo a descrição<template v-if="search.status.linkedin.pendentes">; {{ search.status.linkedin.pendentes }} seguem em segundo plano e aparecem confirmadas na próxima busca</template>.
+      </p>
+      <p v-if="search.status.confianca?.escondidas" class="text-[13px] text-muted">
+        {{ search.status.confianca.escondidas }} {{ search.status.confianca.escondidas === 1 ? 'vaga com sinais fortes de golpe foi escondida' : 'vagas com sinais fortes de golpe foram escondidas' }} (dá para mostrar em "Mais filtros").
       </p>
       <div v-if="search.links?.length">
         <div class="text-[12px] font-semibold text-muted mb-1.5">Também vale procurar em (sites que bloqueiam robôs):</div>

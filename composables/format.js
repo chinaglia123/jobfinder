@@ -23,3 +23,31 @@ export function sourceLabel(source) {
   const m = /^(.*) \((Greenhouse|Lever|Ashby)\)$/.exec(source || '');
   return m ? 'Site da empresa' : source;
 }
+
+const money = (v, currency) => {
+  const sym = currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : 'US$';
+  if (v >= 1000) {
+    const k = v / 1000;
+    return `${sym} ${k.toLocaleString('pt-BR', { maximumFractionDigits: k < 10 ? 1 : 0 })} mil`;
+  }
+  return `${sym} ${Math.round(v).toLocaleString('pt-BR')}`;
+};
+
+/** Salário informado na vaga, no período original (ex: "R$ 4,5 mil/mês", "US$ 90–110 mil/ano") */
+export function formatSalary(s) {
+  if (!s) return '';
+  const per = { month: '/mês', year: '/ano', hour: '/hora' }[s.period] || '';
+  if (s.max && s.max !== s.min) {
+    const a = money(s.min, s.currency), b = money(s.max, s.currency);
+    // "R$ 4 mil – R$ 6 mil" → "R$ 4–6 mil"
+    const m1 = a.match(/^(\S+) ([\d.,]+) mil$/), m2 = b.match(/^(\S+) ([\d.,]+) mil$/);
+    return (m1 && m2 ? `${m1[1]} ${m1[2]}–${m2[2]} mil` : `${a} – ${b}`) + per;
+  }
+  return money(s.min, s.currency) + per;
+}
+
+/** Faixa estimada a partir de vagas parecidas */
+export function formatEstimate(e) {
+  if (!e) return '';
+  return formatSalary({ min: e.low, max: e.high, currency: 'BRL', period: 'month' });
+}

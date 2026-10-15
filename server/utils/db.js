@@ -5,7 +5,7 @@
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
-const SCHEMA_VERSION = '4';
+const SCHEMA_VERSION = '8';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
@@ -75,19 +75,26 @@ const SCHEMA = [
   )`,
   // Limite de uso por pessoa/IP (janela fixa). Fica no banco porque na Vercel cada função tem memória própria.
   `CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)`,
+  // Histórico de cada vaga (mesma empresa + cargo): quando apareceu e quantas vezes foi publicada — detecta vagas fantasma
+  `CREATE TABLE IF NOT EXISTS fingerprints (fp TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL, postings INTEGER NOT NULL DEFAULT 1)`,
+  // Descoberta automática de empresas: nomes vistos nas buscas e links de sistemas de recrutamento achados nas vagas
+  `CREATE TABLE IF NOT EXISTS company_candidates (
+    key TEXT PRIMARY KEY, kind TEXT NOT NULL, -- 'name' | 'board'
+    name TEXT, ats TEXT, slug TEXT, added_at INTEGER NOT NULL, tried_at INTEGER, result TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_candidates_pending ON company_candidates(tried_at, kind)`,
 ];
 
 // Empresas iniciais (slugs conferidos nas APIs públicas em out/2026)
 const SEED = [
-  ['greenhouse', 'arco', 'Arco Educação'], ['greenhouse', 'stone', 'Stone'], ['greenhouse', 'btgpactual', 'BTG Pactual'],
+  ['greenhouse', 'arcoeducacao', 'Arco Educação'], ['greenhouse', 'stone', 'Stone'], ['greenhouse', 'btgpactual', 'BTG Pactual'],
   ['greenhouse', 'c6bank', 'C6 Bank'], ['greenhouse', 'xpinc', 'XP Inc.'], ['greenhouse', 'agibank', 'Agibank'],
   ['greenhouse', 'quintoandar', 'QuintoAndar'], ['greenhouse', 'gympass', 'Wellhub (Gympass)'], ['greenhouse', 'ebanx', 'EBANX'],
   ['greenhouse', 'vtex', 'VTEX'], ['greenhouse', 'wildlifestudios', 'Wildlife Studios'], ['greenhouse', 'jusbrasil', 'Jusbrasil'],
-  ['greenhouse', 'rdstation', 'RD Station'], ['greenhouse', 'blip', 'Blip'], ['greenhouse', 'flash', 'Flash'],
+  ['greenhouse', 'rdstation', 'RD Station'], ['greenhouse', 'blip', 'Blip'],
   ['greenhouse', 'clara', 'Clara'], ['greenhouse', 'wizeline', 'Wizeline'], ['greenhouse', 'canonical', 'Canonical'],
   ['greenhouse', 'gitlab', 'GitLab'], ['greenhouse', 'duolingo', 'Duolingo'], ['greenhouse', 'airtable', 'Airtable'],
-  ['greenhouse', 'remote', 'Remote.com'],
-  ['lever', 'ciandt', 'CI&T'], ['lever', 'swile', 'Swile'], ['lever', 'toptal', 'Toptal'], ['lever', 'kavak', 'Kavak'],
+  ['lever', 'ciandt', 'CI&T'], ['lever', 'flashapp', 'Flash'], ['lever', 'swile', 'Swile'], ['lever', 'toptal', 'Toptal'], ['lever', 'kavak', 'Kavak'],
   ['lever', 'neon', 'Neon'], ['lever', 'starkbank', 'Stark Bank'],
   ['ashby', 'nubank', 'Nubank'], ['ashby', 'addi', 'Addi'], ['ashby', 'zapier', 'Zapier'], ['ashby', 'kueski', 'Kueski'],
   ['ashby', 'neon', 'Neon (Ashby)'], ['ashby', 'belvo', 'Belvo'],
@@ -196,6 +203,19 @@ async function init() {
   }
   const resumeCols = (await driver.all('PRAGMA table_info(resumes)', [])).map((c) => c.name);
   if (!resumeCols.includes('user_id')) await driver.run('ALTER TABLE resumes ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0', []);
+  // Resumo do conteúdo de cada vaga indexada: só regrava quando muda (economiza escritas no Turso)
+  const idxCols = (await driver.all('PRAGMA table_info(index_jobs)', [])).map((c) => c.name);
+  if (!idxCols.includes('content_hash')) await driver.run('ALTER TABLE index_jobs ADD COLUMN content_hash TEXT', []);
+  const compCols = (await driver.all('PRAGMA table_info(companies)', [])).map((c) => c.name);
+  if (!compCols.includes('discovered')) await driver.run('ALTER TABLE companies ADD COLUMN discovered INTEGER NOT NULL DEFAULT 0', []);
+
+  // Correção do cadastro inicial: esses endereços eram de outras empresas (ARCO Companies nos EUA,
+  // General Assembly, uma "Flash" sem vagas no Brasil). Sai o quadro e as vagas dele.
+  const WRONG = "ats = 'greenhouse' AND slug IN ('arco', 'remote', 'flash')";
+  await driver.batch([
+    { sql: `DELETE FROM index_jobs WHERE company_id IN (SELECT id FROM companies WHERE ${WRONG})` },
+    { sql: `DELETE FROM companies WHERE ${WRONG}` },
+  ]);
 
   // Empresas iniciais (sem INSERT OR IGNORE, que consumiria ids do AUTOINCREMENT)
   await driver.batch([
@@ -203,6 +223,14 @@ async function init() {
       sql: 'INSERT INTO companies (ats, slug, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM companies WHERE ats = ? AND slug = ?)',
       args: [ats, slug, name, ats, slug],
     })),
+    // Nomes limpos: sem espaços sobrando e, nas descobertas pelo endereço, o nome visto na vaga
+    { sql: 'UPDATE companies SET name = trim(name)' },
+    { sql: `UPDATE companies SET name = (SELECT cc.name FROM company_candidates cc WHERE cc.kind = 'board' AND cc.ats = companies.ats
+        AND lower(cc.slug) = lower(companies.slug) AND cc.name IS NOT NULL LIMIT 1)
+      WHERE discovered = 1 AND lower(name) = lower(slug) AND EXISTS (SELECT 1 FROM company_candidates cc WHERE cc.kind = 'board'
+        AND cc.ats = companies.ats AND lower(cc.slug) = lower(companies.slug) AND cc.name IS NOT NULL)` },
+    // Se alguma já tinha sido descoberta sozinha, passa a contar como cadastrada
+    { sql: `UPDATE companies SET discovered = 0 WHERE (ats, slug) IN (${SEED.map(() => '(?, ?)').join(', ')})`, args: SEED.flatMap(([a, s]) => [a, s]) },
     { sql: `INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, args: [SCHEMA_VERSION] },
   ]);
   console.log('[Banco] Pronto:', driver.name);

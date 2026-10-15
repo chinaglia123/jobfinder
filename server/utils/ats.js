@@ -20,7 +20,7 @@ export const ATS = {
     label: 'Greenhouse',
     async fetch(slug) {
       const d = await get(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`);
-      return (d.jobs || []).map((j) => {
+      const jobs = (d.jobs || []).map((j) => {
         const desc = text(j.content);
         const location = j.location?.name || '';
         return {
@@ -30,6 +30,8 @@ export const ATS = {
           date: iso(j.first_published || j.updated_at),
         };
       });
+      jobs.boardName = d.jobs?.[0]?.company_name || null;
+      return jobs;
     },
   },
   lever: {
@@ -62,6 +64,68 @@ export const ATS = {
           date: iso(j.publishedAt),
         };
       });
+    },
+  },
+  workable: {
+    label: 'Workable',
+    async fetch(slug) {
+      const d = await get(`https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(slug)}?details=true`);
+      const jobs = (d.jobs || []).map((j) => {
+        const desc = text(j.description);
+        const location = [j.city, j.state, j.country].filter(Boolean).join(', ') || (j.locations || []).map((l) => [l.city, l.country].filter(Boolean).join(', ')).join(' / ');
+        return {
+          url: j.url || j.shortlink, title: j.title, company: d.name || null, location: j.telecommuting ? `Remote · ${location}` : location,
+          mode: j.telecommuting ? 'remote' : classifyMode(`${j.title} | ${location}`, desc), desc,
+          tags: [j.department, j.employment_type, j.function].filter(Boolean),
+          date: iso(j.published_on || j.created_at),
+        };
+      });
+      jobs.boardName = d.name || null;
+      return jobs;
+    },
+  },
+  smartrecruiters: {
+    label: 'SmartRecruiters',
+    // Empresas grandes têm milhares de vagas no mundo: busca só as do Brasil (o filtro é da própria API)
+    async fetch(slug) {
+      const out = [];
+      let boardName = null;
+      for (let offset = 0; offset < 500; offset += 100) {
+        const d = await get(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=100&offset=${offset}&country=br`);
+        for (const j of d.content || []) {
+          boardName ||= j.company?.name || null;
+          const loc = j.location || {};
+          out.push({
+            url: `https://jobs.smartrecruiters.com/${encodeURIComponent(j.company?.identifier || slug)}/${j.id}`,
+            title: j.name, company: j.company?.name || null,
+            location: loc.fullLocation || [loc.city, loc.country].filter(Boolean).join(', '),
+            mode: loc.remote ? 'remote' : loc.hybrid ? 'hybrid' : classifyMode(j.name),
+            desc: '', tags: [j.department?.label, j.typeOfEmployment?.label, j.experienceLevel?.label].filter(Boolean),
+            date: iso(j.releasedDate),
+          });
+        }
+        if ((d.content || []).length < 100) break;
+      }
+      out.boardName = boardName;
+      return out;
+    },
+  },
+  recruitee: {
+    label: 'Recruitee',
+    async fetch(slug) {
+      const d = await get(`https://${encodeURIComponent(slug)}.recruitee.com/api/offers/`);
+      const jobs = (d.offers || []).map((j) => {
+        const desc = text(`${j.description || ''} ${j.requirements || ''}`);
+        return {
+          url: j.careers_url, title: j.title, company: j.company_name || null,
+          location: j.remote ? `Remote · ${j.location || j.country || ''}` : j.location || [j.city, j.country].filter(Boolean).join(', '),
+          mode: j.remote ? 'remote' : j.hybrid ? 'hybrid' : j.on_site ? 'onsite' : classifyMode(j.title, desc), desc,
+          tags: [j.department, j.employment_type_code].filter(Boolean),
+          date: iso(j.published_at && j.published_at.replace(' UTC', 'Z').replace(' ', 'T')),
+        };
+      });
+      jobs.boardName = d.offers?.[0]?.company_name || null;
+      return jobs;
     },
   },
   feed: {
@@ -103,7 +167,7 @@ const FEEDS = {
   },
 };
 
-/** Reconhece o link de carreiras colado pelo usuário. Ex: https://jobs.lever.co/empresa */
+/** Reconhece o link de carreiras (colado pelo usuário ou achado numa vaga). Ex: https://jobs.lever.co/empresa */
 export function parseCompanyUrl(input) {
   const s = (input || '').trim();
   const patterns = [
@@ -111,6 +175,9 @@ export function parseCompanyUrl(input) {
     ['greenhouse', /boards-api\.greenhouse\.io\/v1\/boards\/([\w-]+)/i],
     ['lever', /jobs\.(?:eu\.)?lever\.co\/([\w.-]+)/i],
     ['ashby', /jobs\.ashbyhq\.com\/([\w.%-]+)/i],
+    ['workable', /apply\.workable\.com\/(?!j\/|api\/)([\w-]+)/i],
+    ['smartrecruiters', /(?:jobs|careers)\.smartrecruiters\.com\/([\w-]+)/i],
+    ['recruitee', /([\w-]+)\.recruitee\.com/i],
   ];
   for (const [ats, re] of patterns) {
     const m = s.match(re);

@@ -3,6 +3,9 @@ import { db } from './db';
 import { verifyLinkedIn, searchLinks, norm, nearList, buildMatcher, wordRe, openToBrazil, relatedQueries, detectLang, detectContract } from './search';
 import { enqueueVerify, withForeground } from './indexer';
 import { AREAS_BY_ID } from '#shared/areas.js';
+import { jobFingerprint, mergeJob } from '#shared/jobs.js';
+import { scamSignals, ghostSignals, parseSalary } from './trust';
+import { noteCandidates } from './discovery';
 
 const SENIOR_RE = /\b(senior|sr\.?|especialista|coordenador\w*|gerente|head|lead|lider|manager|diretor\w*|iii|staff|principal)\b/;
 const SENIOR_RE_JR = /\b(senior|sr\.?|pleno|pl\.?|especialista|coordenador\w*|gerente|head|lead|lider|manager|diretor\w*|ii|iii|staff|principal)\b/;
@@ -93,15 +96,28 @@ export async function processJobs(f: any, raw: any[], status: Record<string, any
   const seniorRe = f.seniority === 'junior' ? SENIOR_RE_JR : f.seniority === 'mid' ? SENIOR_RE : null;
   const extra = [...new Set(((f.keywords as string[]) || []).map(norm).filter((w) => w.length > 1))];
 
-  // 1. Deduplicação + relevância pelo título (com sinônimos PT/EN)
-  const seen = new Set<string>();
-  let jobs = results.flat().filter((j: any) => {
-    if (!j.title || !j.url || hidden.has(j.url)) return false;
-    const dk = norm(j.title + '|' + j.company).replace(/\s+/g, ' ');
-    if (seen.has(j.url) || seen.has(dk)) return false;
-    seen.add(j.url);
-    seen.add(dk);
+  // 1. Junta a mesma vaga vinda de fontes diferentes (mesmo link ou mesma empresa + cargo)
+  const byKey = new Map<string, number>();
+  const unique: any[] = [];
+  for (const j of results.flat()) {
+    if (!j.title || !j.url || hidden.has(j.url)) continue;
+    j.fp = jobFingerprint(j.title, j.company);
+    const at = byKey.get(j.url) ?? byKey.get(j.fp);
+    if (at != null) {
+      unique[at] = mergeJob(unique[at], j);
+      byKey.set(j.url, at);
+    } else {
+      byKey.set(j.url, unique.length).set(j.fp, unique.length);
+      unique.push(j);
+    }
+  }
 
+  // Toda empresa vista numa busca vira candidata a ter o site de carreiras acompanhado (descoberta automática)
+  await noteCandidates(unique).catch(() => {});
+
+  // Relevância pelo título (com sinônimos PT/EN) e filtros básicos
+  let jobs = unique.filter((j: any) => {
+    if (hidden.has(j.url)) return false;
     const titleHits = f.matcher.hits(j.title);
     if (f.excludeRes.length && f.excludeRes.some((re: RegExp) => re.test(norm(j.title)))) return false;
     if (f.matcher.terms.length && !titleHits) return false;
@@ -150,6 +166,25 @@ export async function processJobs(f: any, raw: any[], status: Record<string, any
     return true;
   });
 
+  // 3b. Confiança: golpes, vagas fantasma e salário informado
+  const histories = new Map<string, any>();
+  const fps = [...new Set(jobs.map((j: any) => j.fp))];
+  for (let i = 0; i < fps.length; i += 400) {
+    const part = fps.slice(i, i + 400);
+    for (const r of await db.all(`SELECT fp, first_seen, postings FROM fingerprints WHERE fp IN (${part.map(() => '?').join(',')})`, part) as any[]) histories.set(r.fp, r);
+  }
+  for (const j of jobs) {
+    j.scam = scamSignals(j);
+    j.ghost = ghostSignals(j, histories.get(j.fp));
+    j.salary = parseSalary(j);
+  }
+  // Golpe com sinal forte some da lista (a pessoa pode desligar em "Mais filtros")
+  if (f.hideSuspicious !== false) {
+    const before = jobs.length;
+    jobs = jobs.filter((j: any) => j.scam.level < 3);
+    status.confianca = { escondidas: before - jobs.length };
+  }
+
   // 4. Poucas candidaturas (número real do LinkedIn; senão, vaga publicada há poucos dias)
   for (const j of jobs) {
     const age = ageDays(j);
@@ -173,10 +208,27 @@ export async function processJobs(f: any, raw: any[], status: Record<string, any
     }
   }
 
-  // 6. Ordenação: modalidade confirmada primeiro, depois match/relevância, depois data
+  // 5b. Salário estimado: mediana das vagas parecidas (mesma área + nível) desta busca que informam salário
+  const groupOf = (title: string) => f.matcher.groups.find((g: any) => g.strong && g.res.some((r: RegExp) => r.test(norm(title))))?.key || '';
+  const pool = new Map<string, number[]>();
+  for (const j of jobs) {
+    if (j.salary?.currency === 'BRL') {
+      const k = `${groupOf(j.title)}|${jobLevel(j.title)}`;
+      pool.set(k, [...(pool.get(k) || []), j.salary.monthlyMax ? (j.salary.monthlyMin + j.salary.monthlyMax) / 2 : j.salary.monthlyMin]);
+    }
+  }
+  const pct = (arr: number[], p: number) => { const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * (s.length - 1) + 0.5))]; };
+  for (const j of jobs) {
+    if (j.salary || (j.lang && j.lang !== 'pt')) continue;
+    const vals = pool.get(`${groupOf(j.title)}|${jobLevel(j.title)}`) || [];
+    if (vals.length >= 3) j.salaryEstimate = { low: Math.round(pct(vals, 0.25) / 100) * 100, high: Math.round(pct(vals, 0.75) / 100) * 100, n: vals.length };
+  }
+
+  // 6. Ordenação: modalidade confirmada primeiro, depois match/relevância (com desconto para sinais ruins), depois data
+  const penalty = (j: any) => (j.ghost?.level || 0) * (j.matchScore != null ? 8 : 1) + (j.scam?.level || 0) * (j.matchScore != null ? 15 : 2);
   jobs.sort((a: any, b: any) =>
     Number(a.mode === 'unknown') - Number(b.mode === 'unknown')
-    || (b.matchScore ?? b.score ?? 0) - (a.matchScore ?? a.score ?? 0)
+    || ((b.matchScore ?? b.score ?? 0) - penalty(b)) - ((a.matchScore ?? a.score ?? 0) - penalty(a))
     || new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
 
   const counts = jobs.reduce((c: any, j: any) => {

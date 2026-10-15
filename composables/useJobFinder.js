@@ -1,4 +1,5 @@
 import { AREAS_BY_ID } from '#shared/areas.js';
+import { jobFingerprint, mergeJob } from '#shared/jobs.js';
 
 // Estado compartilhado do app (filtros, perfil, resultados, candidaturas) e as ações sobre ele.
 export const DEFAULT_FILTERS = {
@@ -14,6 +15,7 @@ export const DEFAULT_FILTERS = {
   expand: true, // incluir cargos relacionados (mais variedade)
   excludeTerms: [], // palavras proibidas no título
   areas: [], // áreas escolhidas (ver shared/areas.js)
+  hideSuspicious: true, // esconde vagas com sinais fortes de golpe
 };
 
 const emptySearch = () => ({
@@ -30,27 +32,29 @@ async function fetchTimeout(url, opts = {}, ms = 2500) {
   try { return await fetch(url, { ...opts, signal: ctrl.signal }); } finally { clearTimeout(t); }
 }
 
-const normKey = (s) => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
-
 /** Ordem igual à do servidor: modalidade confirmada primeiro, depois match/relevância, depois data. */
 export function sortJobs(jobs, by = 'match') {
   const t = (j) => new Date(j.date || 0).getTime() || 0;
   return [...jobs].sort((a, b) => {
     if (by === 'recent') return t(b) - t(a);
+    // Mesmo desconto do servidor para vagas com sinais de fantasma/golpe
+    const penalty = (j) => (j.ghost?.level || 0) * (j.matchScore != null ? 8 : 1) + (j.scam?.level || 0) * (j.matchScore != null ? 15 : 2);
     return Number(a.mode === 'unknown') - Number(b.mode === 'unknown')
-      || (b.matchScore ?? b.score ?? 0) - (a.matchScore ?? a.score ?? 0)
+      || ((b.matchScore ?? b.score ?? 0) - penalty(b)) - ((a.matchScore ?? a.score ?? 0) - penalty(a))
       || t(b) - t(a);
   });
 }
 
+/** Junta os resultados das etapas da busca: a mesma vaga (mesmo link ou mesma empresa + cargo) vira uma só */
 function mergeJobs(current, incoming) {
-  const seen = new Set();
+  const at = new Map();
   const out = [];
   for (const j of [...current, ...incoming]) {
-    const k1 = j.url, k2 = normKey(j.title + '|' + j.company);
-    if (seen.has(k1) || seen.has(k2)) continue;
-    seen.add(k1); seen.add(k2);
-    out.push(j);
+    const fp = j.fp || jobFingerprint(j.title, j.company);
+    const i = at.get(j.url) ?? at.get(fp);
+    if (i != null) { out[i] = mergeJob(out[i], j); at.set(j.url, i); continue; }
+    at.set(j.url, out.length).set(fp, out.length);
+    out.push({ ...j, fp });
   }
   return sortJobs(out);
 }

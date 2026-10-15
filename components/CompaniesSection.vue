@@ -4,7 +4,8 @@
       <div>
         <h1 class="text-[22px] lg:text-[26px] font-bold tracking-tight">Empresas e fontes</h1>
         <p class="text-muted mt-1 max-w-2xl">
-          Além de LinkedIn e Gupy, o app lê direto o site de carreiras destas empresas a cada 6 horas. Muitas dessas vagas nunca chegam aos grandes portais.
+          Além de LinkedIn e Gupy, o app lê direto o site de carreiras destas empresas. Muitas dessas vagas nunca chegam aos grandes portais.
+          E a lista cresce sozinha: toda empresa que aparece nas buscas é conferida e, se tiver vagas abertas para o Brasil, passa a ser acompanhada.
         </p>
       </div>
       <button v-if="isAdmin" class="btn-secondary" :disabled="reindexing || status?.running" @click="reindex">
@@ -51,7 +52,7 @@
     <!-- Adicionar -->
     <section class="card p-5" aria-label="Adicionar empresa">
       <h2 class="font-semibold">Adicionar uma empresa</h2>
-      <p class="text-[13px] text-muted mt-0.5">Abra o "Trabalhe conosco" da empresa. Se o link de uma vaga levar para Greenhouse, Lever ou Ashby, cole aqui.</p>
+      <p class="text-[13px] text-muted mt-0.5">Abra o "Trabalhe conosco" da empresa. Se o link de uma vaga levar para Greenhouse, Lever, Ashby, Workable, SmartRecruiters ou Recruitee, cole aqui.</p>
       <form class="mt-3 flex flex-col sm:flex-row gap-2" @submit.prevent="addCompany">
         <input v-model="newUrl" type="url" class="input" placeholder="https://jobs.lever.co/empresa" aria-label="Link da página de vagas" />
         <button type="submit" class="btn-primary h-10" :disabled="adding || !newUrl.trim()">
@@ -66,6 +67,10 @@
     <section class="card overflow-hidden" aria-label="Empresas acompanhadas">
       <div class="flex flex-wrap items-center gap-3 p-4 border-b border-line">
         <h2 class="font-semibold flex-1">Empresas acompanhadas <span class="text-subtle font-normal tabular-nums">{{ companies.length }}</span></h2>
+        <div class="segmented" role="group" aria-label="Mostrar empresas">
+          <button type="button" :aria-pressed="listMode === 'all'" @click="listMode = 'all'">Todas</button>
+          <button type="button" :aria-pressed="listMode === 'discovered'" @click="listMode = 'discovered'">Descobertas</button>
+        </div>
         <div class="relative w-full sm:w-56">
           <ListFilter class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" />
           <input v-model="filter" class="input h-9 pl-9 text-[13px]" placeholder="Filtrar empresas" aria-label="Filtrar empresas" />
@@ -77,7 +82,7 @@
           <div class="min-w-0 flex-1">
             <div class="font-medium truncate" :class="!c.enabled && 'text-subtle line-through'">{{ c.name }}</div>
             <div class="text-[12px] text-subtle">
-              {{ ATS_LABEL[c.ats] || c.ats }} ·
+              <span v-if="c.discovered" class="text-accent font-semibold">descoberta · </span>{{ ATS_LABEL[c.ats] || c.ats }} ·
               <span v-if="c.error" class="text-bad" :title="c.error">erro na última leitura</span>
               <template v-else-if="c.last_indexed">{{ c.job_count }} vagas · {{ timeAgo(c.last_indexed) }}</template>
               <template v-else>aguardando leitura</template>
@@ -108,7 +113,7 @@ const { agent, checkAgent, auth } = useJobFinder();
 const isAdmin = computed(() => auth.value.mode === 'local' || auth.value.user?.isAdmin);
 const agentZip = '/api/agente/download';
 
-const ATS_LABEL = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', feed: 'Agregador remoto' };
+const ATS_LABEL = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', smartrecruiters: 'SmartRecruiters', recruitee: 'Recruitee', feed: 'Agregador remoto' };
 const LIVE = [
   { name: 'LinkedIn', desc: 'confirma a modalidade lendo a descrição' },
   { name: 'Gupy', desc: 'maior plataforma de vagas do Brasil' },
@@ -132,12 +137,14 @@ const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 const stats = computed(() => [
   { label: 'Vagas indexadas', value: fmt(status.value.jobs) },
   { label: 'Remotas', value: fmt(status.value.remote), cls: 'text-ok', hint: `${fmt(status.value.hybrid)} híbridas` },
-  { label: 'Empresas ativas', value: status.value.enabled, hint: status.value.errors ? `${status.value.errors} com erro` : status.value.lastIndexed ? `atualizado ${timeAgo(status.value.lastIndexed)}` : '' },
+  { label: 'Empresas acompanhadas', value: status.value.enabled, hint: `${status.value.discovered || 0} descobertas sozinhas${status.value.candidates?.pending ? ` · ${status.value.candidates.pending} na fila para conferir` : ''}` },
   { label: 'LinkedIn na fila', value: status.value.queue, hint: status.value.verifyBlockedUntil ? 'pausada pelo limite do LinkedIn' : 'confirmando em segundo plano' },
 ]);
+const listMode = ref('all');
 const filtered = computed(() => {
   const t = filter.value.toLowerCase().trim();
-  return t ? companies.value.filter((c) => c.name.toLowerCase().includes(t)) : companies.value;
+  const base = listMode.value === 'discovered' ? companies.value.filter((c) => c.discovered) : companies.value;
+  return t ? base.filter((c) => c.name.toLowerCase().includes(t)) : base;
 });
 
 const load = async () => {
@@ -147,7 +154,9 @@ const reindexing = ref(false);
 const reindex = async () => {
   reindexing.value = true;
   try {
-    status.value = await $fetch('/api/index/run', { method: 'POST', body: { force: true } });
+    const r = await $fetch('/api/index/run', { method: 'POST', body: { force: true } });
+    status.value = r;
+    if (r.discovery?.added) { message.value = `${r.discovery.added} ${r.discovery.added === 1 ? 'empresa nova descoberta' : 'empresas novas descobertas'} nesta atualização.`; messageError.value = false; }
     await load();
   } catch (err) {
     message.value = err?.data?.message || err.message;
