@@ -1,0 +1,20 @@
+# Deploy no Render (https://render.com): New + → Blueprint → aponte para o repositório.
+services:
+  - type: web
+    name: jobfinder
+    runtime: docker
+    plan: starter # o plano gratuito não tem disco persistente: o banco seria apagado a cada deploy
+    healthCheckPath: /api/info
+    disk:
+      name: jobfinder-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: JOBFINDER_MODE
+        value: hosted
+      - key: JOBFINDER_CONVITE # opcional: só cria conta quem tiver este código
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Job Finder AI</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>🎯 Job Finder <span>AI</span></h1>
+  <span id="aiBadge" class="badge"></span>
+  <button id="chatToggle" class="primary">💬 Assistente</button>
+</header>
+
+<main>
+  <aside>
+    <section class="card">
+      <h2>1. Seu currículo</h2>
+      <input type="file" id="cvFile" accept=".pdf,.txt,.md">
+      <textarea id="cvText" rows="6" placeholder="...ou cole o texto do currículo aqui (PT ou EN)"></textarea>
+      <button id="analyze" class="primary">Analisar currículo</button>
+      <div id="cvResult" class="muted"></div>
+    </section>
+
+    <section class="card">
+      <h2>2. Filtros</h2>
+      <label>Cargos / palavras-chave <small>(separe por vírgula)</small>
+        <input id="queries" placeholder="ex: analista de marketing, social media">
+      </label>
+      <label>Área
+        <select id="area">
+          <option value="">— usar currículo —</option>
+          <option>TI / Tecnologia</option><option>Marketing</option><option>Financeiro</option>
+          <option>Administrativo</option><option>Vendas / Comercial</option><option>RH</option>
+          <option>Logística</option><option>Design</option>
+        </select>
+      </label>
+      <div class="row">
+        <label>Região
+          <select id="region">
+            <option value="br">🇧🇷 Brasil (PT)</option>
+            <option value="world">🌎 Exterior (EN)</option>
+          </select>
+        </label>
+        <label>Publicada em
+          <select id="days">
+            <option value="0">Qualquer data</option><option value="1">Últimas 24h</option>
+            <option value="3">3 dias</option><option value="7">7 dias</option>
+            <option value="14">14 dias</option><option value="30" selected>30 dias</option>
+            <option value="60">60 dias</option>
+          </select>
+        </label>
+      </div>
+      <label>Modalidade
+        <select id="workMode">
+          <option value="remote">🏠 Somente remoto</option>
+          <option value="remote_hybrid" selected>🏠 Remoto + 🏢 híbrido na minha cidade</option>
+          <option value="any">Qualquer (inclui presencial)</option>
+        </select>
+      </label>
+      <label>Nível
+        <select id="seniority">
+          <option value="">Qualquer</option>
+          <option value="mid">Até pleno (oculta sênior/gestão)</option>
+          <option value="junior">Júnior / assistente / estágio</option>
+        </select>
+      </label>
+      <label>Sua cidade <small>(usada para híbrido; ex: Sorocaba)</small>
+        <input id="location" placeholder="ex: Sorocaba">
+      </label>
+      <label class="check"><input type="checkbox" id="few"> Poucas candidaturas (≤50 candidatos ou publicada há ≤7 dias)</label>
+      <label class="check"><input type="checkbox" id="unconfirmed"> Mostrar vagas sem modalidade confirmada</label>
+      <details><summary>Plataformas</summary><div id="sources"></div></details>
+      <button id="run" class="primary big">🚀 Rodar busca</button>
+    </section>
+  </aside>
+
+  <section id="results">
+    <div id="status" class="muted">Cole seu currículo, ajuste os filtros e clique em <b>Rodar busca</b>.</div>
+    <div id="links"></div>
+    <div id="jobs"></div>
+  </section>
+</main>
+
+<div id="chat" class="hidden">
+  <div class="chat-head">Assistente IA <button id="chatClose">✕</button></div>
+  <div id="chatLog"></div>
+  <form id="chatForm"><input id="chatInput" placeholder='Ex: "só vagas remotas de TI dos últimos 3 dias"' autocomplete="off"><button class="primary">Enviar</button></form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

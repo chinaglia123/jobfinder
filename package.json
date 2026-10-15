@@ -1,0 +1,26 @@
+{
+  "name": "job-finder-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "start": "nuxt dev"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@lucide/vue": "^1.57.0",
+    "@nuxtjs/tailwindcss": "^6.14.0",
+    "lucide-vue-next": "^1.0.0",
+    "nuxt": "^4.6.1"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "mammoth": "^1.13.0",
+    "unpdf": "^1.8.1"
+  }
+}

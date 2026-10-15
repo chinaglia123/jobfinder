@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Tokens de cor (RGB para permitir opacidade no Tailwind) ===== */
+:root {
+  --bg: 246 247 249;
+  --surface: 255 255 255;
+  --surface-2: 241 243 246;
+  --border: 226 229 235;
+  --text: 20 23 31;
+  --muted: 88 96 112;
+  --subtle: 128 137 153;
+  --accent: 47 91 234;
+  --accent-soft: 233 239 255;
+  --accent-ink: 30 60 175;
+  --ok: 21 128 61;
+  --ok-soft: 223 245 231;
+  --warn: 176 84 8;
+  --warn-soft: 253 240 216;
+  --bad: 190 24 60;
+  --bad-soft: 253 230 235;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: 12 14 19;
+  --surface: 20 23 31;
+  --surface-2: 27 31 41;
+  --border: 39 44 57;
+  --text: 232 235 241;
+  --muted: 163 171 186;
+  --subtle: 117 126 143;
+  --accent: 118 146 255;
+  --accent-soft: 30 38 72;
+  --accent-ink: 168 186 255;
+  --ok: 92 214 140;
+  --ok-soft: 20 46 32;
+  --warn: 247 186 64;
+  --warn-soft: 52 39 14;
+  --bad: 251 120 140;
+  --bad-soft: 58 22 32;
+  color-scheme: dark;
+}
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-bg text-ink antialiased font-sans text-[14px] leading-normal;
+  }
+  ::selection { background: rgb(var(--accent) / 0.22); }
+  :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+}
+
+@layer components {
+  .card { @apply bg-surface border border-line rounded-2xl shadow-card; }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-xl text-[13px] font-semibold
+      transition-colors duration-150 select-none whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary { @apply btn bg-accent text-white hover:bg-accent/90; }
+  [data-theme='dark'] .btn-primary { @apply text-bg; }
+  .btn-secondary { @apply btn bg-surface border border-line text-ink hover:bg-surface-2; }
+  .btn-ghost { @apply btn text-muted hover:text-ink hover:bg-surface-2; }
+  .btn-icon { @apply btn w-9 px-0; }
+  .btn-sm { @apply h-8 px-3 text-[12px] rounded-lg; }
+
+  .input {
+    @apply w-full h-10 bg-surface border border-line rounded-xl px-3 text-[14px] text-ink placeholder:text-subtle
+      transition-colors focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/15;
+  }
+  .select { @apply input pr-8 cursor-pointer appearance-none bg-no-repeat; background-position: right 0.6rem center; background-size: 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+  .label { @apply block text-[12px] font-semibold text-muted mb-1.5; }
+
+  .badge { @apply inline-flex items-center gap-1 h-6 px-2 rounded-md text-[12px] font-semibold whitespace-nowrap; }
+  .badge-neutral { @apply badge bg-surface-2 text-muted; }
+  .badge-ok { @apply badge bg-ok-soft text-ok; }
+  .badge-warn { @apply badge bg-warn-soft text-warn; }
+  .badge-bad { @apply badge bg-bad-soft text-bad; }
+  .badge-accent { @apply badge bg-accent-soft text-accent-ink; }
+
+  .chip { @apply inline-flex items-center gap-1 h-7 pl-2.5 pr-1.5 rounded-lg bg-surface-2 border border-line text-[13px] font-medium text-ink; }
+
+  .segmented { @apply inline-flex p-0.5 rounded-xl bg-surface-2 border border-line; }
+  .segmented > button { @apply shrink-0 h-8 px-3 rounded-[10px] text-[13px] font-semibold text-muted transition-colors whitespace-nowrap; }
+  .segmented > button[aria-pressed='true'] { @apply bg-surface text-ink shadow-card; }
+
+  .avatar {
+    background: hsl(var(--h) 70% 93%);
+    color: hsl(var(--h) 55% 32%);
+  }
+  [data-theme='dark'] .avatar {
+    background: hsl(var(--h) 30% 22%);
+    color: hsl(var(--h) 75% 80%);
+  }
+
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--border)) transparent; }
+}
+
+/* Interruptor (checkbox estilizado) */
+.switch { @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full bg-line transition-colors; }
+.switch:has(input:checked) { @apply bg-accent; }
+.switch input { @apply sr-only; }
+.switch span { @apply pointer-events-none absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform; }
+.switch:has(input:checked) span { @apply translate-x-4; }
+.switch:has(input:focus-visible) { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }

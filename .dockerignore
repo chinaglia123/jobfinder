@@ -1,0 +1,8 @@
+node_modules
+.output
+.nuxt
+.data
+.env
+legacy
+agente-local/.venv
+**/__pycache__
