@@ -1,0 +1,3 @@
+# Scripts do agente: o .bat precisa de CRLF (Windows) e o .sh de LF (Mac/Linux), não importa onde o repositório for baixado
+*.bat text eol=crlf
+*.sh  text eol=lf
