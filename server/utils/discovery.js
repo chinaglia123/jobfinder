@@ -89,7 +89,7 @@ export async function processCandidates({ budgetMs = 60_000, max = 80 } = {}) {
   let i = 0, added = 0, checked = 0;
   const finish = (key, result) => db.run('UPDATE company_candidates SET tried_at = ?, result = ? WHERE key = ?', [Date.now(), result, key]);
 
-  await Promise.all(Array.from({ length: Math.min(6, rows.length) }, async () => {
+  await Promise.all(Array.from({ length: Math.min(8, rows.length) }, async () => {
     while (i < rows.length && Date.now() - t0 < budgetMs) {
       const c = rows[i++];
       checked++;

@@ -28,6 +28,8 @@ function chatLocal(msg: string, filters: any) {
   const areas = AREA_LIST.filter((ar) => ar.parts.some((p) => new RegExp('(^|[^a-z])' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z]|$)').test(m)));
   if (areas.length) { a.areas = [...new Set([...(filters.areas || []), ...areas.map((x) => x.id)])]; reply += `Áreas: ${areas.map((x) => x.label).join(', ')}. `; }
 
+  if (/explorar tudo|todas as vagas|sem filtro|mostra tudo|me mostra tudo|qualquer cargo|qualquer area/.test(m)) { a.explore = true; reply += 'Explorando todas as áreas, sem filtro de cargo. '; }
+
   if (/poucas candidaturas|poucos candidatos/.test(m)) { a.fewApplicants = true; reply += 'Priorizando vagas com poucas candidaturas. '; }
 
   const q = m.match(/(?:vagas? de|procur\w+|buscar?|cargo de|area de)\s+([a-z0-9 +#/.-]{3,40})/);
@@ -68,6 +70,7 @@ Campos aceitos em filters:
 - lang: "pt" (só vagas em português) | "any"
 - expand: true | false (incluir cargos relacionados)
 - excludeTerms: lista de palavras proibidas no título (ex: ["estágio", "vendas"])
+- explore: true | false (true = sem filtro de cargo, todas as áreas)
 - areas: lista de ids de áreas (busca vários cargos de uma vez). Ids válidos: ${AREA_LIST.map((x) => `${x.id} (${x.label})`).join('; ')}
 
 Filtros atuais: ${JSON.stringify(filters)}

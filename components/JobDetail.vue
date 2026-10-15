@@ -96,6 +96,12 @@
           <p class="sm:col-span-2 text-[12px] text-subtle">{{ ai.result.provider === 'local' ? 'Análise local (sem IA). Configure uma chave em Ajustes para uma análise mais completa.' : `Análise feita por ${ai.result.provider}.` }}</p>
         </div>
 
+        <button v-if="atsNow" class="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl border border-line text-left text-[13px] hover:bg-surface-2 transition-colors" @click="kitOpen = true">
+          <ScanSearch class="w-4 h-4 shrink-0" :class="atsNow.score >= 80 ? 'text-ok' : atsNow.score >= 60 ? 'text-accent' : 'text-warn'" />
+          <span class="flex-1">Seu currículo no filtro automático (ATS) desta vaga: <b class="tabular-nums">{{ atsNow.score }}/100</b>
+            <span v-if="atsNow.score < 80" class="text-muted"> — "Preparar candidatura" adapta e sobe a nota</span></span>
+          <ChevronRight class="w-4 h-4 text-subtle" />
+        </button>
         <button v-if="!ai.result" class="btn-secondary btn-sm mt-3" :disabled="ai.loading" @click="analyze">
           <LoaderCircle v-if="ai.loading" class="w-4 h-4 animate-spin" /><WandSparkles v-else class="w-4 h-4" />
           {{ ai.loading ? 'Analisando requisitos…' : 'Análise detalhada dos requisitos' }}
@@ -148,8 +154,9 @@
 <script setup>
 import {
   ExternalLink, Bookmark, BookmarkCheck, LoaderCircle, Clock, Users, CircleCheck, TriangleAlert,
-  Lightbulb, WandSparkles, FileUser, ChevronDown, EyeOff, ShieldAlert, Ghost, Wallet, Layers, Building2, Rocket,
+  Lightbulb, WandSparkles, FileUser, ChevronDown, EyeOff, ShieldAlert, Ghost, Wallet, Layers, Building2, Rocket, ScanSearch, ChevronRight,
 } from '@lucide/vue';
+import { extractRequirements, scoreCv } from '#shared/ats.js';
 
 const props = defineProps({ job: { type: Object, required: true } });
 defineEmits(['go', 'hide']);
@@ -160,6 +167,8 @@ const ai = reactive({ loading: false, result: null });
 const company = reactive({ loading: false, data: null });
 const kitOpen = ref(false);
 const salaryText = computed(() => formatSalary(props.job.salary));
+// Nota do currículo atual no filtro automático desta vaga (usa a descrição completa quando carregada)
+const atsNow = computed(() => (cvText.value && cvText.value.length > 80 ? scoreCv(cvText.value, extractRequirements({ title: props.job.title, desc: desc.text || props.job.desc || '' }), props.job) : null));
 const estimateText = computed(() => formatEstimate(props.job.salaryEstimate));
 
 async function loadCompany() {

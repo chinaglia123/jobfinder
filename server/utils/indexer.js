@@ -107,19 +107,25 @@ export async function runIndex({ force = false, companyId = null, budgetMs = Inf
 }
 
 /** Busca no índice: pré-filtro SQL pelos termos (com sinônimos) e o resto do filtro fica no funil. */
-export async function searchIndex(matcher, limit = 3000) {
+export async function searchIndex(matcher, limit = 3000, { explore = false } = {}) {
   const terms = [...new Set(matcher.groups.filter((g) => g.strong).flatMap((g) => g.terms))].filter((t) => t.length > 1);
-  if (!terms.length) return [];
+  if (!terms.length) {
+    if (!explore) return [];
+    // Explorar tudo: as vagas mais recentes de todas as empresas acompanhadas
+    const rows = await db.all('SELECT * FROM index_jobs ORDER BY published_at DESC LIMIT 1500');
+    return rows.map(toJob);
+  }
   // Termos curtos (ux, ui, bi...) precisam casar como palavra inteira, senão "ui" pega "cuidador"
   const where = terms.map((t) => (t.length <= 3 ? "(' ' || title_norm || ' ') GLOB ?" : 'title_norm LIKE ?')).join(' OR ');
   const args = terms.map((t) => (t.length <= 3 ? `*[^a-z0-9]${t}[^a-z0-9]*` : `%${t}%`));
   const rows = await db.all(`SELECT * FROM index_jobs WHERE ${where} LIMIT ${Number(limit)}`, args);
-  return rows.map((r) => ({
+  return rows.map(toJob);
+}
+const toJob = (r) => ({
     title: r.title, company: r.company, url: r.url, location: r.location, mode: r.mode,
     verified: r.mode !== 'unknown', desc: r.description || '', tags: safeJSON(r.tags), date: r.published_at,
     source: r.source, geoCheck: true,
-  }));
-}
+});
 const safeJSON = (s) => { try { return JSON.parse(s) || []; } catch { return []; } };
 
 /** Coloca vagas do LinkedIn na fila para ler a descrição depois. */
@@ -164,6 +170,7 @@ export async function drainVerifyQueue(maxItems = 60, budgetMs = Infinity) {
 }
 
 export async function indexStatus() {
+  const sweepRow = await db.get("SELECT value FROM settings WHERE key = 'sweep_last'");
   const [totals, companies, queue, cand] = await Promise.all([
     db.get("SELECT COUNT(*) AS jobs, SUM(mode = 'remote') AS remote, SUM(mode = 'hybrid') AS hybrid FROM index_jobs"),
     db.get('SELECT COUNT(*) AS total, SUM(enabled) AS enabled, SUM(error IS NOT NULL) AS errors, MAX(last_indexed) AS last, SUM(discovered) AS discovered FROM companies'),
@@ -180,6 +187,7 @@ export async function indexStatus() {
     lastIndexed: companies.last || null,
     discovered: companies.discovered || 0,
     candidates: { total: cand.total || 0, pending: cand.pending || 0 },
+    sweep: sweepRow ? JSON.parse(sweepRow.value) : null,
     running: state.running,
     queue: queue.c,
     verifyBlockedUntil: state.verifyBlockedUntil > Date.now() ? state.verifyBlockedUntil : null,

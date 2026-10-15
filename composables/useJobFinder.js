@@ -16,6 +16,7 @@ export const DEFAULT_FILTERS = {
   excludeTerms: [], // palavras proibidas no título
   areas: [], // áreas escolhidas (ver shared/areas.js)
   hideSuspicious: true, // esconde vagas com sinais fortes de golpe
+  explore: false, // "Explorar tudo": sem filtro de cargo
 };
 
 const emptySearch = () => ({

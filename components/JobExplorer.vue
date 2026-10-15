@@ -13,6 +13,7 @@
         <div>
           <label class="label" for="q">Cargos ou palavras-chave <span v-if="filters.areas?.length" class="font-normal text-subtle">(opcional com áreas escolhidas)</span></label>
           <UiChipInput
+            :class="filters.explore && 'opacity-50 pointer-events-none'"
             id="q"
             v-model="filters.queries"
             placeholder="Ex: analista de marketing, social media"
@@ -28,7 +29,7 @@
             <input id="city" v-model="filters.location" class="input pl-9" placeholder="Ex: Sorocaba" />
           </div>
         </div>
-        <button type="submit" class="btn-primary h-10 px-5" :disabled="!filters.queries.length && !filters.areas?.length">
+        <button type="submit" class="btn-primary h-10 px-5" :disabled="!filters.explore && !filters.queries.length && !filters.areas?.length">
           <Search class="w-4 h-4" />
           {{ dirty && search.ran ? 'Atualizar busca' : 'Buscar' }}
         </button>
@@ -36,18 +37,27 @@
 
       <!-- Áreas: alternativa (ou complemento) aos cargos digitados -->
       <div class="mt-3">
-        <button type="button" class="inline-flex items-center gap-2 h-8 text-[13px] font-semibold text-muted hover:text-ink" :aria-expanded="areasOpen" @click="areasOpen = !areasOpen">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <button type="button" class="inline-flex items-center gap-2 h-8 text-[13px] font-semibold text-muted hover:text-ink disabled:opacity-40" :disabled="filters.explore" :aria-expanded="areasOpen" @click="areasOpen = !areasOpen">
           <LayoutGrid class="w-4 h-4" /> Escolher por área
           <span v-if="filters.areas?.length" class="badge-accent h-5">{{ filters.areas.length }}</span>
           <ChevronDown class="w-4 h-4 transition-transform" :class="areasOpen && 'rotate-180'" />
         </button>
-        <div v-if="!areasOpen && filters.areas?.length" class="mt-1.5 flex flex-wrap gap-1.5">
+        <label class="inline-flex items-center gap-2 h-8 text-[13px] font-semibold cursor-pointer" :class="filters.explore ? 'text-accent' : 'text-muted hover:text-ink'" title="Mostra as vagas mais recentes de todas as áreas, sem filtro de cargo">
+          <span class="switch"><input :checked="!!filters.explore" type="checkbox" @change="filters.explore = $event.target.checked; if (filters.explore) areasOpen = false" /><span></span></span>
+          <Telescope class="w-4 h-4" /> Explorar tudo
+        </label>
+        </div>
+        <p v-if="filters.explore" class="mt-1.5 text-[12px] text-muted">
+          Mostrando as vagas mais recentes de <b>todas as áreas</b>, sem filtro de cargo. Modalidade, região, período e os outros filtros continuam valendo.
+        </p>
+        <div v-if="!filters.explore && !areasOpen && filters.areas?.length" class="mt-1.5 flex flex-wrap gap-1.5">
           <span v-for="id in filters.areas" :key="id" class="chip bg-accent-soft border-accent/30 text-accent-ink">
             {{ areaLabel(id) }}
             <button type="button" class="grid place-items-center w-5 h-5 rounded-md hover:bg-accent/15" :aria-label="`Remover ${areaLabel(id)}`" @click="toggleArea(id)"><X class="w-3.5 h-3.5" /></button>
           </span>
         </div>
-        <div v-if="areasOpen" class="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3 animate-fade-up">
+        <div v-if="areasOpen && !filters.explore" class="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3 animate-fade-up">
           <div v-for="g in AREA_GROUPS" :key="g.id" role="group" :aria-label="g.label">
             <div class="text-[12px] font-semibold text-subtle mb-1.5">{{ g.label }}</div>
             <div class="flex flex-wrap gap-1.5">
@@ -167,7 +177,7 @@
     <!-- Fontes consultadas -->
     <div v-if="sourcesOpen && search.ran" class="mt-3 card p-4 space-y-3 animate-fade-up">
       <div class="flex flex-wrap gap-1.5">
-        <span v-for="(st, id) in search.status" :key="id" :class="st.ok ? 'badge-neutral' : 'badge-bad'" :title="st.error || ''">
+        <span v-for="(st, id) in sourceStatus" :key="id" :class="st.ok ? 'badge-neutral' : 'badge-bad'" :title="st.error || ''">
           <Check v-if="st.ok" class="w-3.5 h-3.5 text-ok" /><X v-else class="w-3.5 h-3.5" />
           {{ labels[id] || id }} <span class="tabular-nums font-medium">{{ st.raw ?? '' }}</span>
         </span>
@@ -283,7 +293,7 @@
 <script setup>
 import {
   Search, MapPin, SlidersHorizontal, ChevronDown, ChevronRight, ChevronLeft, FileUser, ListFilter, Globe,
-  Check, X, ExternalLink, LoaderCircle, CircleAlert, SearchX, MousePointerClick, Plug, LayoutGrid,
+  Check, X, ExternalLink, LoaderCircle, CircleAlert, SearchX, MousePointerClick, Plug, LayoutGrid, Telescope,
 } from '@lucide/vue';
 import { AREA_GROUPS, areaLabel } from '#shared/areas.js';
 
@@ -374,7 +384,9 @@ const visible = computed(() => {
   return sortBy.value === 'match' ? list : sortJobs(list, 'recent');
 });
 const shown = computed(() => visible.value.slice(0, limit.value));
-const okSources = computed(() => Object.values(search.value.status).filter((s) => s.ok).length);
+// O status também traz informações que não são fontes (ex: golpes escondidos)
+const sourceStatus = computed(() => Object.fromEntries(Object.entries(search.value.status).filter(([k]) => k !== 'confianca')));
+const okSources = computed(() => Object.values(sourceStatus.value).filter((s) => s.ok).length);
 
 const open = (job) => {
   selectedUrl.value = job.url;

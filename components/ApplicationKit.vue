@@ -86,21 +86,87 @@
                 </details>
               </div>
 
-              <!-- Painel lateral: cobertura da vaga -->
+              <!-- Painel lateral: pontuação no filtro automático (ATS) e triagem simulada -->
               <aside class="space-y-4 text-[13px]">
+                <div v-if="ats" class="rounded-2xl border border-line p-4">
+                  <div class="flex items-center gap-3">
+                    <UiScoreRing :value="ats.score" size="lg" />
+                    <div class="min-w-0">
+                      <div class="font-semibold leading-snug">Nota no filtro automático (ATS)</div>
+                      <div class="text-[12px]" :class="{ ok: 'text-ok', accent: 'text-accent', warn: 'text-warn' }[band.tone]">{{ band.label }}</div>
+                      <div v-if="atsOriginal" class="text-[12px] text-subtle mt-0.5">
+                        Seu currículo original: {{ atsOriginal.score }}
+                        <b v-if="ats.score > atsOriginal.score" class="text-ok">(+{{ ats.score - atsOriginal.score }})</b>
+                      </div>
+                    </div>
+                  </div>
+                  <ul class="mt-3 space-y-1.5">
+                    <li v-for="p in ats.parts" :key="p.key" :title="p.detail">
+                      <div class="flex justify-between text-[12px]"><span>{{ p.label }}</span><span class="tabular-nums text-muted">{{ p.score }}/{{ p.max }}</span></div>
+                      <div class="h-1.5 rounded-full bg-line overflow-hidden"><div class="h-full rounded-full" :class="p.score / p.max >= 0.75 ? 'bg-ok' : p.score / p.max >= 0.45 ? 'bg-accent' : 'bg-warn'" :style="{ width: (p.score / p.max) * 100 + '%' }"></div></div>
+                      <div class="text-[11px] text-subtle">{{ p.detail }}</div>
+                    </li>
+                  </ul>
+                  <p class="text-[11px] text-subtle mt-2">Atualiza enquanto você edita. É uma estimativa: cada empresa configura o próprio sistema.</p>
+                </div>
+
+                <div v-if="cv.confirm?.length" class="p-3 rounded-xl bg-warn-soft space-y-2">
+                  <div class="font-semibold text-warn">Confirme que é verdade</div>
+                  <p>Usamos estes termos da vaga com base na sua experiência:</p>
+                  <div v-for="c in cv.confirm" :key="c" class="flex items-center gap-2">
+                    <span class="badge-warn">{{ c }}</span>
+                    <button class="btn-ghost btn-sm h-7 px-2" @click="dropSkill(c)">Não é verdade, remover</button>
+                  </div>
+                </div>
+
                 <div v-if="cv.warnings?.length" class="p-3 rounded-xl bg-bad-soft space-y-1">
                   <div class="font-semibold text-bad flex items-center gap-1.5"><ShieldCheck class="w-4 h-4" /> Revisamos para você</div>
                   <p v-for="w in cv.warnings" :key="w">{{ w }}</p>
                 </div>
-                <div v-if="cv.keywords_covered?.length">
+
+                <div v-if="ats?.missing.length">
+                  <div class="font-semibold text-warn mb-1.5 flex items-center gap-1.5"><TriangleAlert class="w-4 h-4" /> A vaga pede e não está no currículo</div>
+                  <ul class="space-y-1">
+                    <li v-for="m in ats.missing" :key="m.term" class="flex items-center gap-2">
+                      <span class="flex-1">{{ m.term }}<span v-if="m.nice" class="text-subtle"> (desejável)</span></span>
+                      <button class="btn-ghost btn-sm h-7 px-2" title="Adiciona às competências — só se você realmente tiver" @click="addSkill(m.term)"><Plus class="w-3.5 h-3.5" /> Tenho isso</button>
+                    </li>
+                  </ul>
+                  <p class="text-subtle mt-1.5">Só marque o que você realmente sabe: na entrevista vão perguntar.</p>
+                </div>
+                <div v-if="ats?.matched.length">
                   <div class="font-semibold text-ok mb-1.5 flex items-center gap-1.5"><CircleCheck class="w-4 h-4" /> A vaga pede e você tem</div>
-                  <div class="flex flex-wrap gap-1"><span v-for="k in cv.keywords_covered" :key="k" class="badge-ok">{{ k }}</span></div>
+                  <div class="flex flex-wrap gap-1"><span v-for="k in ats.matched" :key="k" class="badge-ok">{{ k }}</span></div>
                 </div>
-                <div v-if="cv.keywords_missing?.length">
-                  <div class="font-semibold text-warn mb-1.5 flex items-center gap-1.5"><TriangleAlert class="w-4 h-4" /> A vaga pede e não está no CV</div>
-                  <div class="flex flex-wrap gap-1"><span v-for="k in cv.keywords_missing" :key="k" class="badge-warn">{{ k }}</span></div>
-                  <p class="text-subtle mt-1.5">Só acrescente se você realmente tiver essa experiência.</p>
+
+                <!-- Triagem simulada com IA -->
+                <div class="rounded-2xl border border-line p-4 space-y-2">
+                  <div class="font-semibold">Triagem simulada (IA)</div>
+                  <p class="text-[12px] text-muted">Uma IA lê o currículo como o filtro e a pessoa que recruta fariam na primeira etapa.</p>
+                  <button class="btn-secondary btn-sm w-full" :disabled="screen.loading" @click="simulate">
+                    <LoaderCircle v-if="screen.loading" class="w-4 h-4 animate-spin" /><ScanSearch v-else class="w-4 h-4" />
+                    {{ screen.result ? 'Simular de novo' : 'Simular triagem' }}
+                  </button>
+                  <p v-if="screen.error" class="text-bad">{{ screen.error }}</p>
+                  <div v-if="screen.result" class="space-y-2 animate-fade-up">
+                    <div class="flex items-center gap-2">
+                      <span :class="{ avanca: 'badge-ok', talvez: 'badge-warn', reprovado: 'badge-bad' }[screen.result.decision]">
+                        {{ { avanca: 'Avançaria', talvez: 'Talvez', reprovado: 'Seria reprovado' }[screen.result.decision] }}
+                      </span>
+                      <span class="tabular-nums text-muted">{{ screen.result.score }}/100</span>
+                    </div>
+                    <p>{{ screen.result.summary }}</p>
+                    <div v-if="screen.result.knockouts.length">
+                      <div class="font-semibold text-bad text-[12px]">Pode eliminar</div>
+                      <ul class="space-y-0.5"><li v-for="k in screen.result.knockouts" :key="k">• {{ k }}</li></ul>
+                    </div>
+                    <div v-if="screen.result.fixes.length">
+                      <div class="font-semibold text-[12px]">O que ajustar</div>
+                      <ul class="space-y-0.5"><li v-for="f in screen.result.fixes" :key="f">• {{ f }}</li></ul>
+                    </div>
+                  </div>
                 </div>
+
                 <div v-if="cv.tips?.length" class="p-3 rounded-xl bg-accent-soft/60 space-y-1.5">
                   <div class="font-semibold flex items-center gap-1.5"><Lightbulb class="w-4 h-4 text-accent" /> Dicas</div>
                   <p v-for="t in cv.tips" :key="t">{{ t }}</p>
@@ -146,8 +212,9 @@
 </template>
 
 <script setup>
-import { X, FileUser, LoaderCircle, TriangleAlert, ShieldCheck, CircleCheck, Lightbulb, Copy, Check, FileDown, ExternalLink } from '@lucide/vue';
+import { X, FileUser, LoaderCircle, TriangleAlert, ShieldCheck, CircleCheck, Lightbulb, Copy, Check, FileDown, ExternalLink, Plus, ScanSearch } from '@lucide/vue';
 import { cvToText, cvFileName, downloadPdf, downloadDocx } from '~/composables/cvExport.js';
+import { extractRequirements, scoreCv, atsBand } from '#shared/ats.js';
 
 const props = defineProps({ job: { type: Object, required: true }, open: { type: Boolean, default: false } });
 const emit = defineEmits(['close', 'go']);
@@ -161,6 +228,36 @@ const cv = ref(null);
 const cvState = reactive({ loading: false, error: '' });
 const letterState = reactive({ loading: false, data: null });
 const exporting = ref('');
+
+// ===== Pontuação ATS (recalcula a cada edição) =====
+const requirements = computed(() => extractRequirements({ title: props.job.title, desc: cv.value?.jobDesc || props.job.desc || '' }));
+const ats = computed(() => (cv.value ? scoreCv(cvToText(cv.value), requirements.value, props.job) : null));
+const atsOriginal = computed(() => (cvText.value ? scoreCv(cvText.value, requirements.value, props.job) : null));
+const band = computed(() => atsBand(ats.value?.score || 0));
+const addSkill = (term) => {
+  const first = term.split(' ou ')[0];
+  if (!cv.value.skills.some((s) => s.toLowerCase() === first.toLowerCase())) cv.value.skills = [...cv.value.skills, first];
+};
+const dropSkill = (term) => {
+  cv.value.skills = cv.value.skills.filter((s) => s !== term);
+  cv.value.confirm = (cv.value.confirm || []).filter((c) => c !== term);
+};
+
+// ===== Triagem simulada com IA =====
+const screen = reactive({ loading: false, result: null, error: '' });
+async function simulate() {
+  screen.loading = true; screen.error = '';
+  try {
+    screen.result = checkKeyError(await $fetch('/api/ai/ats-screen', {
+      method: 'POST', headers: aiHeaders(),
+      body: { job: { ...props.job, jobDesc: cv.value?.jobDesc }, cvText: cvToText(JSON.parse(JSON.stringify(cv.value))) },
+    }));
+  } catch (err) {
+    screen.error = err?.data?.message || err.message;
+  } finally {
+    screen.loading = false;
+  }
+}
 const copied = ref('');
 
 // Fica guardado por vaga enquanto a página estiver aberta (reabrir não gera de novo)
@@ -169,6 +266,7 @@ const cache = useState('applicationKitCache', () => ({}));
 async function prepare() {
   const url = props.job.url;
   const cached = cache.value[url];
+  screen.result = null; screen.error = '';
   if (cached) { cv.value = cached.cv; letterState.data = cached.letter; return; }
   cv.value = null;
   letterState.data = null;

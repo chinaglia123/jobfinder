@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   // Vagas dos sites de carreira das empresas, já indexadas em segundo plano (instantâneo)
   if (!f.sources || !f.sources.length || f.sources.includes('empresas')) {
     try {
-      const [idx, st] = await Promise.all([searchIndex(f.matcher), indexStatus()]);
+      const [idx, st] = await Promise.all([searchIndex(f.matcher, 3000, { explore: f.explore }), indexStatus()]);
       status.empresas = { ok: true, raw: idx.length, indexadas: st.jobs, quadros: st.enabled, atualizando: st.running };
       results.push(idx);
     } catch (e: any) {

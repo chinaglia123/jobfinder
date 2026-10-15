@@ -2,6 +2,7 @@ import { generateAI, parseJSON } from '../../utils/ai';
 import { aiCreds } from '../../utils/ai-creds';
 import { jobDescription } from '../../utils/job-desc';
 import { norm, wordRe, detectLang } from '../../utils/search';
+import { extractRequirements } from '#shared/ats.js';
 
 /**
  * Currículo adaptado a uma vaga: reorganiza e reescreve o currículo da pessoa usando o vocabulário
@@ -102,6 +103,9 @@ export default defineEventHandler(async (event) => {
 
   const desc = (await jobDescription(job)) || job.desc || '';
   const lang = detectLang(job.title, desc) === 'en' ? 'en' : 'pt';
+  // O que o sistema de triagem (ATS) da vaga deve procurar: a IA usa esses termos exatos quando forem verdade
+  const req = extractRequirements({ title: job.title, desc });
+  const atsTerms = [...req.keywords.map((k) => k.term), ...req.titleTerms.map((t) => t.toUpperCase().length <= 4 ? t.toUpperCase() : t)];
   let keyError = null;
 
   try {
@@ -112,6 +116,12 @@ export default defineEventHandler(async (event) => {
         content: `VAGA: ${job.title} — ${job.company} (${job.location || ''})
 DESCRIÇÃO DA VAGA:
 ${desc.slice(0, 6000) || '(sem descrição; use o título)'}
+
+TERMOS QUE O SISTEMA DE TRIAGEM (ATS) DESTA VAGA PROCURA:
+${atsTerms.join(', ') || '(nenhum identificado)'}
+Para cada termo acima que descreva algo que a pessoa REALMENTE fez (mesmo que com outras palavras no currículo),
+escreva o termo exatamente como acima (ex: quem criou réguas/fluxos de e-mail de relacionamento fez CRM).
+Termos que a pessoa não tem NÃO entram no currículo: vão para "keywords_missing".
 
 CURRÍCULO ORIGINAL:
 ${String(cvText).slice(0, 12000)}`,
@@ -125,8 +135,13 @@ ${String(cvText).slice(0, 12000)}`,
     if (d && (d.summary || d.experience?.length)) {
       const cvNorm = norm(cvText);
       const skills = checkSkills(list(d.skills), cvNorm);
+      // Termo da vaga que a IA associou a algo que a pessoa fez (ex: réguas de e-mail → CRM): fica, mas a pessoa confirma
+      const atsNorm = atsTerms.map((t) => norm(t));
+      const viaAts = skills.removed.filter((r) => atsNorm.includes(norm(r).trim()));
+      const dropped = skills.removed.filter((r) => !viaAts.includes(r));
       const warnings: string[] = [];
-      if (skills.removed.length) warnings.push(`Removemos habilidades que não estão no seu currículo: ${skills.removed.join(', ')}`);
+      const confirm: string[] = viaAts;
+      if (dropped.length) warnings.push(`Removemos habilidades que não estão no seu currículo: ${dropped.join(', ')}`);
       const allText = [d.summary, ...(Array.isArray(d.experience) ? d.experience.flatMap((e: any) => list(e?.bullets)) : [])].join(' ');
       const nums = [...new Set(newNumbers(allText, cvNorm))];
       if (nums.length) warnings.push(`Confira estes números, que não estão no seu currículo original: ${nums.join(', ')}`);
@@ -142,7 +157,8 @@ ${String(cvText).slice(0, 12000)}`,
         headline: head.headline,
         contact: String(d.contact || '').trim(),
         summary: String(d.summary || '').trim(),
-        skills: skills.kept,
+        skills: [...skills.kept, ...viaAts],
+        confirm,
         experience,
         education: list(d.education),
         certifications: list(d.certifications),
@@ -151,6 +167,7 @@ ${String(cvText).slice(0, 12000)}`,
         keywords_missing: list(d.keywords_missing),
         tips: list(d.tips).slice(0, 4),
         lang,
+        jobDesc: desc.slice(0, 8000),
         provider: ai.provider,
         keyError,
       };
@@ -159,5 +176,5 @@ ${String(cvText).slice(0, 12000)}`,
     console.warn('[AI:tailor-cv fallback]', e);
   }
 
-  return { ...localTailor(job, desc, String(cvText), profile), lang, provider: 'local', keyError };
+  return { ...localTailor(job, desc, String(cvText), profile), lang, jobDesc: desc.slice(0, 8000), provider: 'local', keyError };
 });

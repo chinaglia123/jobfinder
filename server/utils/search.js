@@ -412,6 +412,7 @@ export const SOURCES = {
   } },
   // Vagas.com: um dos maiores portais brasileiros (HTML público)
   vagascom: { label: 'Vagas.com', regions: ['br'], async run(f) {
+    if (f.explore) return [];
     const remote = f.workMode !== 'any';
     const slug = (q) => norm(q).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const reqs = queryPlan(f, [1, 2]).flatMap(({ q, page }) => [
@@ -448,6 +449,7 @@ export const SOURCES = {
   } },
   // InfoJobs: portal brasileiro com filtro próprio de home office
   infojobs: { label: 'InfoJobs', regions: ['br'], async run(f) {
+    if (f.explore) return [];
     const remote = f.workMode !== 'any';
     const enc = (q) => norm(q).replace(/[^a-z0-9]+/g, '+').replace(/^\+|\+$/g, '');
     const reqs = queryPlan(f, [1, 2], 4);
@@ -478,6 +480,54 @@ export const SOURCES = {
         tags: [salary].filter(Boolean),
       };
     }).filter((j) => j.title && j.url);
+  } },
+  // Catho: um dos maiores portais do Brasil (HTML público). A página não diz a modalidade: vem do título/salário.
+  catho: { label: 'Catho', regions: ['br'], async run(f) {
+    if (f.explore) return [];
+    const slug = (q) => norm(q).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const reqs = queryPlan(f, [1, 2], 4);
+    const pages = await pool(reqs, 3, async ({ q, page }) => {
+      try {
+        const html = await get(`https://www.catho.com.br/vagas/${slug(q)}/${page > 1 ? `?page=${page}` : ''}`, false);
+        return html.split('<li data-offer-item=').slice(1);
+      } catch { return []; }
+    });
+    const dec = (s) => strip(String(s || '').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16))));
+    return pages.flat().map((c) => {
+      const a = c.match(/<h2 class="title_offer">\s*<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/) || [];
+      const title = dec(a[2]);
+      const ps = [...c.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => dec(m[1]));
+      const location = (ps.find((p) => /vaga/.test(p)) || '').replace(/^\d+\s+vagas?\s*-\s*/i, '').trim();
+      const salary = ps.find((p) => /R\$/.test(p)) || '';
+      const pub = (c.match(/Publicada em (\d{2})\/(\d{2})/) || []);
+      const y = new Date().getFullYear();
+      const date = pub[1] ? `${new Date(`${y}-${pub[2]}-${pub[1]}`) > new Date() ? y - 1 : y}-${pub[2]}-${pub[1]}` : (/pub_hoje/.test(c) ? new Date().toISOString().slice(0, 10) : null);
+      const mode = /home ?office|remot/i.test(`${title} ${location}`) ? 'remote' : classifyMode(title);
+      return {
+        title, url: a[1] ? 'https://www.catho.com.br' + a[1] : '',
+        company: ps[0] && !/vaga|R\$/.test(ps[0]) ? ps[0] : 'Empresa (Catho)',
+        location: mode === 'remote' ? 'Remoto (Brasil)' : location, date, mode, verified: mode !== 'unknown',
+        desc: '', tags: [salary].filter(Boolean),
+      };
+    }).filter((j) => j.title && j.url);
+  } },
+  // Programathor: vagas de tecnologia (lista de remotas; o filtro de cargo é feito no funil)
+  programathor: { label: 'Programathor', regions: ['br'], async run(f) {
+    const tech = /desenvolv|developer|programador|software|engenheir|dados|data|devops|cloud|qa|teste|front|back|full|mobile|ux|ui|produto|product|infra|suporte|seguranca|sre|tech/;
+    if (!f.explore && !tech.test(norm([...f.queries, ...(f.areaQueries || [])].join(' ')))) return [];
+    const pages = await pool([1, 2, 3], 3, async (page) => {
+      try { return (await get(`https://programathor.com.br/jobs-city/remoto${page > 1 ? `?page=${page}` : ''}`, false)).split(/class="cell-list[\s"]/).slice(1); } // não confundir com "cell-list-content"
+      catch { return []; }
+    });
+    return pages.flat().map((c) => {
+      const href = (c.match(/<a href="(\/jobs\/[^"]+)"/) || [])[1];
+      const spans = [...c.matchAll(/<span><i class='[^']*'><\/i>([^<]*)<\/span>/g)].map((m) => strip(m[1]));
+      return {
+        title: strip((c.match(/<h3[^>]*>([\s\S]*?)<\/h3>/) || [])[1]), url: href ? 'https://programathor.com.br' + href : '',
+        company: spans[0] || 'Empresa (Programathor)', location: 'Remoto (Brasil)', mode: 'remote', verified: true,
+        date: null, desc: '', tags: [...spans.slice(2), ...[...c.matchAll(/class='tag-list[^']*'>([^<]+)</g)].map((m) => m[1])].filter(Boolean),
+      };
+    }).filter((j) => j.title && j.url && !/^vencida\b/i.test(j.title)); // a lista também mostra vagas já encerradas
   } },
   // Himalayas: vagas remotas de empresas do mundo todo, filtradas pelas que aceitam quem mora no Brasil
   himalayas: { label: 'Himalayas', regions: ['br', 'world'], async run(f) {

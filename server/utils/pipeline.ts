@@ -64,13 +64,16 @@ export function normalizeFilters(input: any) {
   // Demais cargos das áreas: buscados só na 1ª página de cada fonte (para não pesar)
   f.areaQueries = areas.flatMap((a: any) => a.queries.slice(0, 3)).filter(take).slice(0, 12);
   const areaMatch = areas.flatMap((a: any) => a.queries);
-  if (!f.queries.length) f.queries = ['emprego'];
+  // "Explorar tudo": sem filtro de cargo — as fontes listam o que há de mais recente
+  f.explore = !!f.explore;
+  if (f.explore) { f.queries = ['']; f.areaQueries = []; }
+  else if (!f.queries.length) f.queries = ['emprego'];
 
   // Cargos relacionados (mais variedade): só a partir do que a pessoa digitou; pesam menos no ranking
   f.expand = f.expand !== false;
-  f.related = f.expand && typed.length ? relatedQueries(typed, areas.length ? 4 : 8) : [];
+  f.related = f.expand && typed.length && !f.explore ? relatedQueries(typed, areas.length ? 4 : 8) : [];
   // Cargo digitado ou área escolhida conta como escolha explícita (não "relacionado")
-  f.typedMatcher = buildMatcher([...f.queries, ...areaMatch]);
+  f.typedMatcher = buildMatcher(f.explore ? [] : [...f.queries, ...areaMatch]);
   f.matcher = f.related.length ? buildMatcher([...f.queries, ...areaMatch, ...f.related]) : f.typedMatcher;
   // Palavras que a pessoa não quer ver no título (ex: "estágio", "vendas")
   f.excludeTerms = (Array.isArray(f.excludeTerms) ? f.excludeTerms : []).map((t: string) => norm(t).trim()).filter((t: string) => t.length > 1);
@@ -237,7 +240,8 @@ export async function processJobs(f: any, raw: any[], status: Record<string, any
   }, {});
 
   return {
-    jobs: jobs.slice(0, 300).map((j: any) => ({ ...j, desc: (j.desc || '').slice(0, 2500), checked: undefined, geoCheck: undefined })),
+    // No modo explorar vem mais vagas, com descrição mais curta (o painel busca a completa ao abrir)
+    jobs: jobs.slice(0, f.explore ? 600 : 300).map((j: any) => ({ ...j, desc: (j.desc || '').slice(0, f.explore ? 1200 : 2500), checked: undefined, geoCheck: undefined })),
     status,
     counts,
     links: searchLinks(f),

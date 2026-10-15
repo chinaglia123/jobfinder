@@ -16,6 +16,7 @@ export const SOURCE_LABELS = {
   empresas: 'Sites das empresas', gupy: 'Gupy', linkedin: 'LinkedIn', remotar: 'Remotar', trampos: 'Trampos',
   himalayas: 'Himalayas', getonbrd: 'Get on Board', remotive: 'Remotive', jobicy: 'Jobicy',
   indeed: 'Indeed', glassdoor: 'Glassdoor', agente: 'Agente local', vagascom: 'Vagas.com', infojobs: 'InfoJobs',
+  catho: 'Catho', programathor: 'Programathor',
 };
 
 /** Nome curto da fonte (ex: "Stone (Greenhouse)" → "Stone · site da empresa") */

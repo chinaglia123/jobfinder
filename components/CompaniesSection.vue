@@ -8,7 +8,10 @@
           E a lista cresce sozinha: toda empresa que aparece nas buscas é conferida e, se tiver vagas abertas para o Brasil, passa a ser acompanhada.
         </p>
       </div>
-      <button v-if="isAdmin" class="btn-secondary" :disabled="reindexing || status?.running" @click="reindex">
+      <button v-if="isAdmin" class="btn-ghost" :disabled="reindexing || status?.running" title="Percorre várias áreas agora para descobrir empresas novas" @click="reindex(true)">
+        <Telescope class="w-4 h-4" /> Varrer agora
+      </button>
+      <button v-if="isAdmin" class="btn-secondary" :disabled="reindexing || status?.running" @click="reindex()">
         <LoaderCircle v-if="reindexing || status?.running" class="w-4 h-4 animate-spin" /><RefreshCw v-else class="w-4 h-4" />
         {{ reindexing || status?.running ? 'Atualizando… (pode levar alguns minutos)' : 'Atualizar agora' }}
       </button>
@@ -107,7 +110,7 @@
 </template>
 
 <script setup>
-import { RefreshCw, LoaderCircle, Plus, ListFilter, Check, Plug } from '@lucide/vue';
+import { RefreshCw, LoaderCircle, Plus, ListFilter, Check, Plug, Telescope } from '@lucide/vue';
 
 const { agent, checkAgent, auth } = useJobFinder();
 const isAdmin = computed(() => auth.value.mode === 'local' || auth.value.user?.isAdmin);
@@ -137,7 +140,8 @@ const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 const stats = computed(() => [
   { label: 'Vagas indexadas', value: fmt(status.value.jobs) },
   { label: 'Remotas', value: fmt(status.value.remote), cls: 'text-ok', hint: `${fmt(status.value.hybrid)} híbridas` },
-  { label: 'Empresas acompanhadas', value: status.value.enabled, hint: `${status.value.discovered || 0} descobertas sozinhas${status.value.candidates?.pending ? ` · ${status.value.candidates.pending} na fila para conferir` : ''}` },
+  { label: 'Empresas acompanhadas', value: status.value.enabled, hint: `${status.value.discovered || 0} descobertas sozinhas${status.value.candidates?.pending ? ` · ${fmt(status.value.candidates.pending)} na fila para conferir` : ''}` },
+  ...(status.value.sweep ? [{ label: 'Varredura de todas as áreas', value: fmt(status.value.sweep.jobs), hint: `vagas lidas na última rodada · ${timeAgo(status.value.sweep.at)}` }] : []),
   { label: 'LinkedIn na fila', value: status.value.queue, hint: status.value.verifyBlockedUntil ? 'pausada pelo limite do LinkedIn' : 'confirmando em segundo plano' },
 ]);
 const listMode = ref('all');
@@ -151,11 +155,12 @@ const load = async () => {
   try { [companies.value, status.value] = await Promise.all([$fetch('/api/companies'), $fetch('/api/index/status')]); } catch {}
 };
 const reindexing = ref(false);
-const reindex = async () => {
+const reindex = async (sweep = false) => {
   reindexing.value = true;
   try {
-    const r = await $fetch('/api/index/run', { method: 'POST', body: { force: true } });
+    const r = await $fetch('/api/index/run', { method: 'POST', body: sweep ? { force: false, sweep: true } : { force: true } });
     status.value = r;
+    if (r.sweep?.noted) { message.value = `Varredura: ${fmt(r.sweep.jobs)} vagas lidas e ${fmt(r.sweep.noted)} empresas anotadas para conferir.`; messageError.value = false; }
     if (r.discovery?.added) { message.value = `${r.discovery.added} ${r.discovery.added === 1 ? 'empresa nova descoberta' : 'empresas novas descobertas'} nesta atualização.`; messageError.value = false; }
     await load();
   } catch (err) {
