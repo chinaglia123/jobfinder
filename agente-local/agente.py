@@ -94,7 +94,7 @@ def run_site(site, query, filters):
             site_name=[site],
             search_term=query,
             location=plan["location"] or None,
-            results_wanted=50 if site == "indeed" else 30,
+            results_wanted=100 if site == "indeed" else 50,
             country_indeed="Brazil" if br else "USA",
             verbose=0,
         )

@@ -139,3 +139,9 @@ Abra http://localhost:3000. Para Indeed/Glassdoor, dê dois cliques em `agente-l
 - **Explorar tudo**: modo sem filtro de cargo (vagas mais recentes de todas as fontes e do índice, até 600).
 - **Varredura** (`server/utils/sweep.js`): percorre todas as 32 áreas (algumas por rodada) + uma passada sem filtro nas fontes rápidas só para anotar empresas para a descoberta (local a cada 30 min; na Vercel junto do cron; botão "Varrer agora"). Primeira rodada: 4.955 vagas lidas, ~2.000 empresas anotadas em 11s.
 - **Fontes novas:** Catho e Programathor (tecnologia, remotas, sem vagas vencidas). Descoberta com 8 conferências em paralelo, até 150 por rodada.
+
+### 📡 Mais vagas e agente pelo servidor (out/2026)
+- A busca devolve até **1.000 vagas** (antes 300; a tela mostra de 40 em 40). Com o perfil de CRM/RevOps a lista foi de 300 para 490, e a Catho, que antes era cortada, passou a aparecer.
+- **Empregos.com.br** como fonte nova (lê os dados que o site já manda no HTML; a modalidade vem do site, corrigida pelo texto da vaga).
+- **Agente pelo servidor** (`server/utils/agent.ts`, `/api/search/agente`, `/api/agente/status`): quando o JobFinder e o agente Python rodam no mesmo PC, o servidor chama o agente direto. Quem abre o site de outro aparelho da rede também recebe Indeed e Glassdoor. Sem agente ao lado do servidor (Vercel), a tela tenta o agente pelo navegador, como antes.
+- Agente: Indeed busca até 100 vagas por cargo e o Glassdoor até 50.

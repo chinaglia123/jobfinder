@@ -300,6 +300,30 @@ export async function verifyLinkedIn(jobs, { maxFetch = 40, budgetMs = 45000 } =
 }
 
 // ================= FONTES =================
+/**
+ * Lê os dados que um site feito em Nuxt já manda no HTML (<script id="__NUXT_DATA__">, formato "devalue":
+ * um array em que cada valor aponta para outra posição) e devolve os objetos que têm a chave `key`.
+ */
+function nuxtRecords(html, key) {
+  const m = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return [];
+  const d = JSON.parse(m[1]);
+  const WRAP = new Set(['Reactive', 'ShallowReactive', 'Ref', 'ShallowRef', 'EmptyRef', 'Date', 'Set', 'Map']);
+  const read = (i, depth = 0) => {
+    if (typeof i !== 'number' || i < 0 || depth > 12) return null;
+    const v = d[i];
+    if (Array.isArray(v)) {
+      if (typeof v[0] === 'string' && WRAP.has(v[0])) return v[0] === 'Date' ? v[1] : read(v[1], depth + 1);
+      return v.map((x) => read(x, depth + 1));
+    }
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, read(x, depth + 1)]));
+    return v;
+  };
+  const out = [];
+  d.forEach((v, i) => { if (v && typeof v === 'object' && !Array.isArray(v) && key in v) out.push(read(i)); });
+  return out;
+}
+
 const pool = async (items, n, fn) => {
   const out = []; let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
@@ -511,6 +535,36 @@ export const SOURCES = {
       };
     }).filter((j) => j.title && j.url);
   } },
+  // Empregos.com.br: portal brasileiro grande. A modalidade vem do próprio site, mas muita vaga híbrida
+  // aparece como "Presencial", então o texto da vaga tem a palavra final quando diz outra coisa.
+  empregoscom: { label: 'Empregos.com.br', regions: ['br'], async run(f) {
+    if (f.explore) return [];
+    const slug = (q) => norm(q).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const reqs = queryPlan(f, [1, 2], 4);
+    const pages = await pool(reqs, 3, async ({ q, page }) => {
+      try { return nuxtRecords(await get(`https://www.empregos.com.br/vagas/${slug(q)}${page > 1 ? '/' + page : ''}`, false), 'referenceId'); }
+      catch { return []; }
+    });
+    const SITE_MODE = { Remoto: 'remote', 'Híbrido': 'hybrid', Presencial: 'onsite' };
+    const money = (n) => 'R$ ' + Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    return pages.flat().map((j) => {
+      const title = strip(j.title), desc = strip(j.description).slice(0, 6000);
+      const loc = (Array.isArray(j.location) ? j.location[0] : null) || {};
+      const fromText = classifyMode(title, desc);
+      const site = SITE_MODE[j.workplaceTypes] || 'unknown';
+      const mode = site === 'onsite' && fromText !== 'unknown' ? fromText : site !== 'unknown' ? site : fromText;
+      const min = Number(j.salary?.min) || 0, max = Number(j.salary?.max) || 0;
+      return {
+        title,
+        url: j.referenceId ? `https://www.empregos.com.br/vaga/${j.referenceId}` : '',
+        company: strip(j.company?.name) || 'Empresa (Empregos.com.br)',
+        location: mode === 'remote' ? 'Remoto (Brasil)' : [loc.city, loc.stateAbbreviation].filter(Boolean).join(' - '),
+        date: typeof j.createdAt === 'string' ? j.createdAt.slice(0, 10) : null,
+        mode, verified: mode !== 'unknown', desc,
+        tags: [j.contractForm && j.contractForm !== 'A Combinar' ? j.contractForm : null, min > 0 ? money(min) + (max > min ? ' - ' + money(max) : '') : null].filter(Boolean),
+      };
+    }).filter((j) => j.title && j.url);
+  } },
   // Programathor: vagas de tecnologia (lista de remotas; o filtro de cargo é feito no funil)
   programathor: { label: 'Programathor', regions: ['br'], async run(f) {
     const tech = /desenvolv|developer|programador|software|engenheir|dados|data|devops|cloud|qa|teste|front|back|full|mobile|ux|ui|produto|product|infra|suporte|seguranca|sre|tech/;
@@ -599,6 +653,7 @@ export function searchLinks(f) {
     { name: 'Indeed', url: br ? `https://br.indeed.com/jobs?q=${q}${remote ? '+home+office' : ''}&l=${remote ? '' : l}${days ? '&fromage=' + days : ''}` : `https://www.indeed.com/jobs?q=${q}&l=${remote ? 'Remote' : l}${days ? '&fromage=' + days : ''}` },
     { name: 'Gupy (remoto)', url: `https://portal.gupy.io/job-search/term=${q}${remote ? '&workplaceTypes[]=remote&workplaceTypes[]=hybrid' : ''}` },
     { name: 'Vagas.com (home office)', url: `https://www.vagas.com.br/vagas-de-${q}${remote ? '?m%5B%5D=100%25+Home+Office' : ''}` },
+    { name: 'Empregos.com.br', url: `https://www.empregos.com.br/vagas/${norm(f.queries[0] || '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}` },
     { name: 'Catho', url: `https://www.catho.com.br/vagas/${q}/${remote ? '?work_model[0]=remote' : ''}` },
     { name: 'InfoJobs', url: `https://www.infojobs.com.br/empregos.aspx?palavra=${q}${remote ? '&tipotrabalho=4' : ''}` },
     { name: 'Google Vagas', url: `https://www.google.com/search?q=${q}+${remote ? 'home+office' : 'vagas+' + l}&ibp=htl;jobs` },

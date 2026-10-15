@@ -9,7 +9,7 @@ import { AREA_GROUPS } from '#shared/areas.js';
 
 const ALL_AREAS = AREA_GROUPS.flatMap((g) => g.areas);
 // Fontes baratas e estáveis (LinkedIn fica de fora: é lento e bloqueia)
-const SWEEP_SOURCES = ['gupy', 'remotar', 'trampos', 'infojobs', 'vagascom', 'catho', 'himalayas', 'getonbrd'];
+const SWEEP_SOURCES = ['gupy', 'remotar', 'trampos', 'infojobs', 'vagascom', 'catho', 'empregoscom', 'himalayas', 'getonbrd'];
 
 async function collect(filters) {
   const f = normalizeFilters({ region: 'br', workMode: 'any', expand: false, ...filters });

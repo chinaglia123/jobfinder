@@ -240,8 +240,9 @@ export async function processJobs(f: any, raw: any[], status: Record<string, any
   }, {});
 
   return {
-    // No modo explorar vem mais vagas, com descrição mais curta (o painel busca a completa ao abrir)
-    jobs: jobs.slice(0, f.explore ? 600 : 300).map((j: any) => ({ ...j, desc: (j.desc || '').slice(0, f.explore ? 1200 : 2500), checked: undefined, geoCheck: undefined })),
+    // Até 1.000 vagas (a tela mostra de 40 em 40). As primeiras vêm com descrição maior; nas outras ela é
+    // mais curta para a resposta não pesar (o painel busca a completa ao abrir).
+    jobs: jobs.slice(0, 1000).map((j: any, i: number) => ({ ...j, desc: (j.desc || '').slice(0, !f.explore && i < 300 ? 2500 : 1000), checked: undefined, geoCheck: undefined })),
     status,
     counts,
     links: searchLinks(f),

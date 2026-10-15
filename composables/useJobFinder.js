@@ -185,8 +185,19 @@ export function useJobFinder() {
     try { info.value = await $fetch('/api/info'); } catch {}
   }
 
-  /** Verifica se o agente local (Python) está rodando neste computador */
+  /**
+   * Verifica se o agente local (Python) está disponível: primeiro ao lado do servidor (quando o JobFinder
+   * roda no mesmo PC, inclusive para quem abre de outro aparelho da rede), depois neste computador.
+   */
   async function checkAgent() {
+    try {
+      const s = await $fetch('/api/agente/status');
+      if (s?.ok) {
+        agent.value = { ...agent.value, online: true, checked: true, viaServer: true, version: s.version, sources: s.sources || [] };
+        return true;
+      }
+    } catch {}
+    agent.value = { ...agent.value, viaServer: false };
     try {
       const r = await fetchTimeout(agent.value.url.replace(/\/$/, '') + '/status', {}, 1500);
       const d = await r.json();
@@ -246,6 +257,10 @@ export function useJobFinder() {
       if (!(await checkAgent())) return;
       // O agente busca até 4 cargos: os digitados primeiro, depois o principal de cada área
       const agentQueries = [...new Set([...(body.queries || []), ...(body.areas || []).map((id) => AREAS_BY_ID[id]?.queries[0]).filter(Boolean)])].slice(0, 4);
+      if (agent.value.viaServer) {
+        const res = await $fetch('/api/search/agente', { method: 'POST', body: { ...body, agentQueries } });
+        if (res.available) { apply(res); return; }
+      }
       const r = await fetchTimeout(agent.value.url.replace(/\/$/, '') + '/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, queries: agentQueries }),
       }, 120000);
