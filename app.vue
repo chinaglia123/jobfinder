@@ -1,6 +1,6 @@
 <template>
   <div v-if="!auth.loaded" class="min-h-screen grid place-items-center text-subtle"><LoaderCircle class="w-6 h-6 animate-spin" /></div>
-  <LoginScreen v-else-if="auth.mode === 'hosted' && !auth.user" @done="start" />
+  <LoginScreen v-else-if="auth.mode === 'hosted' && !auth.user" />
   <div v-else class="min-h-screen lg:flex">
     <!-- Menu lateral (computador) -->
     <aside class="hidden lg:flex lg:flex-col w-60 shrink-0 h-screen sticky top-0 border-r border-line bg-surface px-3 py-4">
@@ -64,7 +64,8 @@
     </header>
 
     <main class="flex-1 min-w-0 pb-20 lg:pb-0">
-      <JobExplorer v-if="tab === 'jobs'" @go="tab = $event" />
+      <Onboarding v-if="onboarding && tab === 'jobs'" @done="onboarding = false" />
+      <JobExplorer v-else-if="tab === 'jobs'" @go="tab = $event" />
       <KanbanBoard v-else-if="tab === 'applications'" @go="tab = $event" />
       <ResumeSection v-else-if="tab === 'profile'" @go="tab = $event" />
       <CompaniesSection v-else-if="tab === 'sources'" />
@@ -110,6 +111,8 @@ const { filters, profile, cvText, kanban, toasts, info, auth, aiKey, fetchInfo, 
 
 const tab = ref('jobs');
 const chatOpen = ref(false);
+// Primeiro acesso: conta nova, sem currículo nem filtros salvos
+const onboarding = ref(false);
 
 const savedCount = computed(() => Object.values(kanban.value).reduce((n, col) => n + (col?.length || 0), 0));
 const tabs = computed(() => [
@@ -143,14 +146,21 @@ async function start() {
   ];
   fetchInfo();
   fetchKanban();
-  runSearch();
+  onboarding.value = !!server && !server.profile && !server.cvText && !server.filters;
+  const f = filters.value;
+  if (!onboarding.value && (f.queries?.length || f.areas?.length || f.explore)) runSearch();
 }
 
 onMounted(async () => {
   loadAiKey();
   const me = await fetchMe();
-  if (me.mode === 'hosted' && !me.user) { fetchInfo(); return; }
-  start();
+  if (me.mode === 'hosted' && !me.user) fetchInfo();
+});
+
+// Carrega os dados assim que há alguém na conta: ao abrir o app já logado e logo depois do login.
+// (A tela de login some antes de conseguir avisar, por isso o app observa a conta em vez de esperar um evento.)
+watch(() => auth.value.loaded && (auth.value.mode === 'local' ? 'local' : auth.value.user?.id || null), (who, before) => {
+  if (who && who !== before) start();
 });
 
 // Ao sair da conta, volta para a tela de login

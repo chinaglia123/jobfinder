@@ -3,10 +3,10 @@ import { jobFingerprint, mergeJob } from '#shared/jobs.js';
 
 // Estado compartilhado do app (filtros, perfil, resultados, candidaturas) e as ações sobre ele.
 export const DEFAULT_FILTERS = {
-  queries: ['analista de marketing', 'marketing digital', 'vendas técnicas', 'assistente de marketing'],
+  queries: [],
   workMode: 'remote_hybrid',
-  seniority: 'mid',
-  location: 'Sorocaba',
+  seniority: '',
+  location: '',
   days: 30,
   region: 'br',
   fewApplicants: false,

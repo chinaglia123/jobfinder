@@ -145,3 +145,10 @@ Abra http://localhost:3000. Para Indeed/Glassdoor, dê dois cliques em `agente-l
 - **Empregos.com.br** como fonte nova (lê os dados que o site já manda no HTML; a modalidade vem do site, corrigida pelo texto da vaga).
 - **Agente pelo servidor** (`server/utils/agent.ts`, `/api/search/agente`, `/api/agente/status`): quando o JobFinder e o agente Python rodam no mesmo PC, o servidor chama o agente direto. Quem abre o site de outro aparelho da rede também recebe Indeed e Glassdoor. Sem agente ao lado do servidor (Vercel), a tela tenta o agente pelo navegador, como antes.
 - Agente: Indeed busca até 100 vagas por cargo e o Glassdoor até 50.
+
+### 🚀 Pronto para publicar (out/2026)
+- **Página de entrada** nova (`LoginScreen.vue`): explica o que o site faz, com "Criar conta" em destaque; `?convite=CODIGO` no link preenche o convite.
+- **Primeiro acesso guiado** (`Onboarding.vue`): conta nova → envia o currículo (ou escolhe áreas) → confere cargos, modalidade e cidade → busca. Os filtros iniciais agora são neutros (sem cargo nem cidade fixos).
+- **IA do site com cota diária** por pessoa (`JOBFINDER_IA_POR_DIA`, padrão 40) quando a chave é do site; quem usa a própria chave não tem esse limite.
+- Correção: depois do login os dados da pessoa não carregavam até recarregar a página (a tela de login sumia antes de avisar o app). Agora o app observa a conta.
+- Upload e análise do currículo compartilhados em `composables/useCvUpload.js`.

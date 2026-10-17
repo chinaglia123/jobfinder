@@ -8,16 +8,18 @@ Tempo estimado: 20–30 minutos. Você vai precisar de três contas gratuitas: *
 ## 1. Subir o projeto para o GitHub
 
 1. Crie um repositório **privado** em https://github.com/new (ex: `jobfinder`). Não marque README nem .gitignore.
-2. Na pasta do projeto, rode (o GitHub mostra esses mesmos comandos depois de criar o repositório):
+2. O projeto já está com o git iniciado e tudo commitado. Na pasta do projeto, rode só estes dois comandos
+   (troque `SEU-USUARIO` pelo seu usuário do GitHub):
 
 ```bash
-git init
-git add .
-git commit -m "JobFinder"
-git branch -M main
 git remote add origin https://github.com/SEU-USUARIO/jobfinder.git
+```
+
+```bash
 git push -u origin main
 ```
+
+Na primeira vez o Git abre uma janela para você entrar na sua conta do GitHub.
 
 O `.gitignore` já impede que o banco local (`.data`), o `.env` (chaves) e as pastas pesadas sejam enviados.
 
@@ -40,8 +42,9 @@ As tabelas são criadas sozinhas no primeiro acesso.
 | `TURSO_DATABASE_URL` | a URL do passo 2 (`libsql://...`) |
 | `TURSO_AUTH_TOKEN` | o token do passo 2 |
 | `CRON_SECRET` | uma senha longa e aleatória (ex: gere em https://1password.com/password-generator) |
-| `JOBFINDER_CONVITE` | *(opcional)* um código que as pessoas precisam digitar para criar conta |
-| `GROQ_API_KEY` | *(opcional)* chave de IA do site. Sem ela, cada pessoa usa a própria chave em Ajustes |
+| `GROQ_API_KEY` | **recomendado:** chave de IA do site (grátis em https://console.groq.com/keys). Com ela ninguém precisa criar chave própria |
+| `JOBFINDER_IA_POR_DIA` | *(opcional)* quantos usos de IA cada pessoa tem por dia com a chave do site. Padrão: `40` |
+| `JOBFINDER_CONVITE` | *(opcional)* um código que as pessoas precisam digitar para criar conta. Deixe vazio para qualquer pessoa entrar |
 
 3. Clique em **Deploy**. Ao terminar, a Vercel mostra o endereço do site (ex: `https://jobfinder-xyz.vercel.app`).
 
@@ -49,7 +52,9 @@ As tabelas são criadas sozinhas no primeiro acesso.
 
 1. Abra o site e **crie a sua conta primeiro** — a primeira conta vira a administradora.
 2. Vá em **Empresas e fontes → Atualizar agora** para baixar as vagas das empresas pela primeira vez (leva 1–3 minutos).
-3. Mande o link para quem quiser usar. Se definiu `JOBFINDER_CONVITE`, mande o código junto.
+3. Mande o link para quem quiser usar. Se definiu `JOBFINDER_CONVITE`, mande o link já com o código, que ele é
+   preenchido sozinho: `https://SEU-SITE.vercel.app/?convite=SEU-CODIGO`.
+4. Quem cria conta cai no **primeiro acesso guiado**: envia o currículo, confere os cargos sugeridos e já vê as vagas.
 
 ## 5. Atualização automática das vagas (recomendado)
 
@@ -64,10 +69,11 @@ O cron gratuito da Vercel roda **uma vez por dia** (às 6h de Brasília). Para a
 
 ## Bom saber
 
-- **Plano gratuito da Vercel (Hobby):** é para uso pessoal, não comercial. Cada busca pode levar até ~40s (o limite é 300s).
+- **Plano gratuito da Vercel (Hobby):** é para uso pessoal, não comercial. Para cobrar assinatura é preciso o plano Pro. Cada busca pode levar até ~40s (o limite é 300s).
 - **Plano gratuito do Turso:** 5 GB e milhões de leituras/gravações por mês — muito acima do que o app usa.
 - **LinkedIn:** a partir de servidores na nuvem ele bloqueia mais rápido. As outras fontes seguem funcionando.
   Quem quiser **Indeed e Glassdoor** baixa o agente local em *Empresas e fontes* (o zip já vem configurado para o seu site).
-- **Chaves de IA:** em *Ajustes*, cada pessoa pode usar a própria chave gratuita (fica só no navegador dela).
+- **Chaves de IA:** com `GROQ_API_KEY`, todo mundo usa a IA do site até o limite diário. Em *Ajustes*, cada pessoa ainda pode colocar a própria chave gratuita (Groq, Gemini ou OpenRouter), que tira o limite e fica só no navegador dela.
+- **Groq tem limite grátis por minuto e por dia.** Se muita gente usar ao mesmo tempo, dá para cadastrar também `GEMINI_API_KEY`: o site passa para ela quando o Groq recusar.
 - **Atualizar o site:** basta enviar mudanças para o GitHub (`git push`); a Vercel publica sozinha.
 - **Rodar no seu computador** continua igual: `npm run dev` (usa o banco local em `.data`, sem login).

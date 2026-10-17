@@ -2,7 +2,8 @@
   <div class="px-4 lg:px-8 py-5 lg:py-7 max-w-3xl mx-auto space-y-5">
     <header>
       <h1 class="text-[22px] lg:text-[26px] font-bold tracking-tight">Ajustes</h1>
-      <p class="text-muted mt-1">Sem IA o app funciona com uma análise local mais simples. Com uma chave gratuita, a leitura do currículo, o match e as mensagens ficam bem melhores.</p>
+      <p v-if="info?.ai && auth.mode === 'hosted'" class="text-muted mt-1">A IA do site já está ativa para você: até <b>{{ info.aiPerDay }} usos por dia</b> (análise do currículo, currículo sob medida, triagem e Copiloto). Uma chave própria é opcional e tira esse limite.</p>
+      <p v-else class="text-muted mt-1">Sem IA o app funciona com uma análise local mais simples. Com uma chave gratuita, a leitura do currículo, o match e as mensagens ficam bem melhores.</p>
     </header>
 
     <!-- Chave de IA da própria pessoa -->
@@ -15,7 +16,7 @@
           <h2 class="font-semibold flex flex-wrap items-center gap-2">
             Sua chave de IA
             <span v-if="aiKey?.key" class="badge-ok">Em uso · {{ PROVIDER_INFO[aiKey.provider]?.name }}</span>
-            <span v-else class="badge-neutral">Não configurada</span>
+            <span v-else class="badge-neutral">{{ info?.ai ? 'Opcional' : 'Não configurada' }}</span>
           </h2>
           <p class="text-[13px] text-muted mt-1">
             Use a sua própria chave gratuita para a análise do currículo, o match detalhado, as mensagens e o Copiloto.

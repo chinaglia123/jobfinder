@@ -73,7 +73,10 @@ export async function requireAdmin(event: H3Event) {
 // Na Vercel cada execução pode cair numa instância diferente, então a contagem não pode ficar só na memória.
 
 /** Permite `max` chamadas por janela de `windowMs`. Lança 429 quando passar. */
-export async function rateLimit(event: H3Event, name: string, max: number, windowMs: number) {
+/** Usos de IA por dia que cada pessoa tem com a chave do site (JOBFINDER_IA_POR_DIA) */
+export const AI_PER_DAY = Math.max(1, Number(process.env.JOBFINDER_IA_POR_DIA) || 40);
+
+export async function rateLimit(event: H3Event, name: string, max: number, windowMs: number, message?: string) {
   if (MODE === 'local') return;
   const who = (await getUser(event))?.id ?? (getRequestIP(event, { xForwardedFor: true }) || 'anon');
   const key = `${name}:${who}`;
@@ -85,7 +88,7 @@ export async function rateLimit(event: H3Event, name: string, max: number, windo
     RETURNING count, reset_at`, [key, now + windowMs, now, now]);
   if (row && row.count > max) {
     const wait = Math.max(1, Math.ceil((row.reset_at - now) / 60000));
-    throw createError({ statusCode: 429, message: `Muitas solicitações. Tente de novo em ${wait} min.` });
+    throw createError({ statusCode: 429, message: message || `Muitas solicitações. Tente de novo em ${wait} min.` });
   }
 }
 

@@ -2,7 +2,7 @@
   <div class="px-4 lg:px-8 py-5 lg:py-7 max-w-5xl mx-auto">
     <header class="mb-5">
       <h1 class="text-[22px] lg:text-[26px] font-bold tracking-tight">Meu currículo</h1>
-      <p class="text-muted mt-1">Usamos seu currículo para sugerir cargos e calcular o quanto cada vaga combina com você. Ele fica salvo só neste computador.</p>
+      <p class="text-muted mt-1">Usamos seu currículo para sugerir cargos e calcular o quanto cada vaga combina com você. {{ auth.mode === 'hosted' ? 'Ele fica na sua conta e só você vê.' : 'Ele fica salvo só neste computador.' }}</p>
     </header>
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-start">
@@ -109,54 +109,17 @@
 import { CloudUpload, LoaderCircle, CircleAlert, FileText, ChevronRight, WandSparkles, Search, Trash2, FileUser } from '@lucide/vue';
 
 const emit = defineEmits(['go']);
-const { profile, cvText, filters, runSearch, toast, aiHeaders, checkKeyError } = useJobFinder();
+const { profile, cvText, filters, runSearch, auth } = useJobFinder();
+const { busy, busyLabel, error, fileName, upload, analyze } = useCvUpload();
 
 const LEVELS = ['estágio', 'júnior', 'pleno', 'sênior'];
 const dragging = ref(false);
-const busy = ref(false);
-const busyLabel = ref('');
-const error = ref('');
-const fileName = ref('');
 const showText = ref(false);
-
-async function upload(file) {
-  if (!file) return;
-  error.value = '';
-  busy.value = true;
-  busyLabel.value = 'Lendo o arquivo…';
-  try {
-    const fd = new FormData();
-    fd.append('file', file);
-    const r = await $fetch('/api/cv/upload', { method: 'POST', body: fd });
-    cvText.value = r.text;
-    fileName.value = file.name;
-    await analyze(true);
-  } catch (err) {
-    error.value = err?.data?.message || err.message || 'Não consegui ler o arquivo.';
-    showText.value = true;
-  } finally {
-    busy.value = false;
-  }
-}
+// Se não deu para ler o arquivo, abre o campo para colar o texto
+watch(error, (e) => { if (e) showText.value = true; });
 
 const onPick = (e) => { upload(e.target.files?.[0]); e.target.value = ''; };
 const onDrop = (e) => { dragging.value = false; upload(e.dataTransfer?.files?.[0]); };
-
-async function analyze(fromUpload = false) {
-  busy.value = true;
-  busyLabel.value = 'Analisando seu perfil…';
-  error.value = '';
-  try {
-    const r = checkKeyError(await $fetch('/api/cv/analyze', { method: 'POST', headers: aiHeaders(), body: { text: cvText.value } }));
-    delete r.keyError;
-    profile.value = { ...r, titles: r.titles || [], keywords: r.keywords || [], areas: r.areas || [] };
-    toast(fromUpload ? 'Currículo lido e analisado' : 'Perfil atualizado');
-  } catch (err) {
-    error.value = err?.data?.message || err.message;
-  } finally {
-    busy.value = false;
-  }
-}
 
 function useTitles() {
   filters.value = { ...filters.value, queries: [...profile.value.titles] };
