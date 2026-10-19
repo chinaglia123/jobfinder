@@ -152,3 +152,14 @@ Abra http://localhost:3000. Para Indeed/Glassdoor, dê dois cliques em `agente-l
 - **IA do site com cota diária** por pessoa (`JOBFINDER_IA_POR_DIA`, padrão 40) quando a chave é do site; quem usa a própria chave não tem esse limite.
 - Correção: depois do login os dados da pessoa não carregavam até recarregar a página (a tela de login sumia antes de avisar o app). Agora o app observa a conta.
 - Upload e análise do currículo compartilhados em `composables/useCvUpload.js`.
+
+### 🌐 Ambiente em Produção Ativo (out/2026)
+- **Site em Produção (Vercel):** `https://jobfinder-woad.vercel.app`
+- **Repositório GitHub conectado:** `https://github.com/chinaglia123/jobfinder` (deploy contínuo na branch `main`)
+- **Banco de Dados (Turso SQLite HTTP):** `libsql://jobfinder-chinaglia123.aws-sa-east-1.turso.io` (36 empresas iniciais + schema v8 inicializado)
+- **Modo:** `JOBFINDER_MODE=hosted` (multi-usuário com isolamento de dados e suporte a chave de IA individual por navegador)
+- **Melhorias no Cadastro e Primeiro Acesso:**
+  - `LoginScreen.vue`: botão para visualizar/esconder senha (`Eye`/`EyeOff`) no login e cadastro + campo **Confirmar senha** com validação em tempo real no cadastro.
+  - `Onboarding.vue`: inicia pelo passo **1. Chave de IA (grátis)** (atalho direto para gerar a Key na Groq/Gemini/OpenRouter e testar na hora antes de ler o currículo) + botões destacados em todas as etapas para **Pular currículo e escolher área** ou **Pular e ir direto para a busca**.
+
+

@@ -62,8 +62,57 @@
             </div>
             <div>
               <label class="label" for="pass">Senha</label>
-              <input id="pass" v-model="password" type="password" required class="input" :autocomplete="tab === 'login' ? 'current-password' : 'new-password'" :minlength="tab === 'register' ? 8 : undefined" />
+              <div class="relative">
+                <input
+                  id="pass"
+                  v-model="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  required
+                  class="input pr-10"
+                  :autocomplete="tab === 'login' ? 'current-password' : 'new-password'"
+                  :minlength="tab === 'register' ? 8 : undefined"
+                />
+                <button
+                  type="button"
+                  class="absolute right-1 top-1/2 -translate-y-1/2 btn-icon btn-ghost h-8 w-8 text-subtle hover:text-ink"
+                  :aria-label="showPassword ? 'Esconder senha' : 'Mostrar senha'"
+                  @click="showPassword = !showPassword"
+                >
+                  <EyeOff v-if="showPassword" class="w-4 h-4" />
+                  <Eye v-else class="w-4 h-4" />
+                </button>
+              </div>
               <p v-if="tab === 'register'" class="text-[12px] text-subtle mt-1">Mínimo de 8 caracteres.</p>
+            </div>
+            <div v-if="tab === 'register'">
+              <label class="label" for="pass-confirm">Confirmar senha</label>
+              <div class="relative">
+                <input
+                  id="pass-confirm"
+                  v-model="confirmPassword"
+                  :type="showConfirmPassword ? 'text' : 'password'"
+                  required
+                  class="input pr-10"
+                  :class="confirmPassword && password !== confirmPassword ? 'border-bad focus:border-bad' : ''"
+                  autocomplete="new-password"
+                  minlength="8"
+                />
+                <button
+                  type="button"
+                  class="absolute right-1 top-1/2 -translate-y-1/2 btn-icon btn-ghost h-8 w-8 text-subtle hover:text-ink"
+                  :aria-label="showConfirmPassword ? 'Esconder confirmação de senha' : 'Mostrar confirmação de senha'"
+                  @click="showConfirmPassword = !showConfirmPassword"
+                >
+                  <EyeOff v-if="showConfirmPassword" class="w-4 h-4" />
+                  <Eye v-else class="w-4 h-4" />
+                </button>
+              </div>
+              <p v-if="confirmPassword && password !== confirmPassword" class="text-[12px] text-bad mt-1">
+                As senhas ainda não coincidem.
+              </p>
+              <p v-else-if="confirmPassword && password.length >= 8 && password === confirmPassword" class="text-[12px] text-ok mt-1">
+                Senhas conferem.
+              </p>
             </div>
             <div v-if="tab === 'register' && auth.inviteRequired">
               <label class="label" for="invite">Código de convite</label>
@@ -73,7 +122,7 @@
 
             <p v-if="error" class="flex gap-2 text-[13px] text-bad"><CircleAlert class="w-4 h-4 shrink-0 mt-0.5" />{{ error }}</p>
 
-            <button type="submit" class="btn-primary w-full h-10" :disabled="busy">
+            <button type="submit" class="btn-primary w-full h-10" :disabled="busy || (tab === 'register' && Boolean(confirmPassword) && password !== confirmPassword)">
               <LoaderCircle v-if="busy" class="w-4 h-4 animate-spin" />
               {{ tab === 'login' ? 'Entrar' : 'Criar conta e começar' }}
             </button>
@@ -89,7 +138,7 @@
 </template>
 
 <script setup>
-import { Radar, CircleAlert, LoaderCircle, Layers, Target, FileCheck2, ShieldCheck, KanbanSquare, Sparkles } from '@lucide/vue';
+import { Radar, CircleAlert, LoaderCircle, Layers, Target, FileCheck2, ShieldCheck, KanbanSquare, Sparkles, Eye, EyeOff } from '@lucide/vue';
 
 const { auth, info, login, register } = useJobFinder();
 
@@ -110,9 +159,16 @@ const showAll = ref(false);
 const name = ref('');
 const email = ref('');
 const password = ref('');
+const confirmPassword = ref('');
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 const invite = ref('');
 const busy = ref(false);
 const error = ref('');
+
+watch(tab, () => {
+  error.value = '';
+});
 
 onMounted(() => {
   // Link com ?convite=CODIGO já preenche o código
@@ -121,8 +177,18 @@ onMounted(() => {
 });
 
 async function submit() {
-  busy.value = true;
   error.value = '';
+  if (tab.value === 'register') {
+    if (password.value.length < 8) {
+      error.value = 'A senha precisa ter pelo menos 8 caracteres.';
+      return;
+    }
+    if (password.value !== confirmPassword.value) {
+      error.value = 'As senhas não coincidem. Verifique e tente novamente.';
+      return;
+    }
+  }
+  busy.value = true;
   try {
     if (tab.value === 'login') await login(email.value, password.value);
     else await register({ name: name.value, email: email.value, password: password.value, invite: invite.value });
